@@ -1,11 +1,16 @@
-# Makefile
+# Non-RISCV Makefile
+# Credit to: https://github.com/euske/nn1 , this code is a variant of his minimalistic implementation
+
+# Execution Procedure: 
+# make mnist --> compile C-binaries
+# make test_mnist --> run C-binaries
 
 RM=rm -f
-CC=cc -O -Wall -Werror
+CC=cc -O -Wall -std=c11 -pedantic
 CURL=curl
 GZIP=gzip
 
-LIBS=-lm
+LIBS=-lm endian.h convolution-api.h
 
 DATADIR=./data
 MNIST_FILES= \
@@ -30,23 +35,9 @@ get_mnist:
 	-$(CURL) http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz | \
 		$(GZIP) -dc > ./data/t10k-labels-idx1-ubyte
 
-test_bnn: ./bnn
-	./bnn
+mnist: mnist.c cnn.c
+	rm -rf mnist
+	$(CC) -o $@ $^ $(LIBS)
 
 test_mnist: ./mnist $(MNIST_FILES)
 	./mnist $(MNIST_FILES)
-
-test_rnn: ./rnn
-	./rnn
-
-./bnn: bnn.c
-	$(CC) -o $@ $^ $(LIBS)
-
-./mnist: mnist.c cnn.c
-	$(CC) -o $@ $^ $(LIBS)
-
-./rnn: rnn.c
-	$(CC) -o $@ $^ $(LIBS)
-
-mnist.c: cnn.h
-cnn.c: cnn.h
