@@ -1,0 +1,6 @@
+# MNIST's data directory
+data
+build
+
+# RISCV executables generated
+*.riscv
