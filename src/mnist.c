@@ -9,10 +9,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <endian.h>
 #include <string.h>
 #include "cnn.h"
 
+/* be32toh */
+uint32_t be32toh(uint32_t big_endian_value) {
+    union {
+        uint32_t u32;
+        uint8_t bytes[4];
+    } u;
+    u.bytes[0] = (big_endian_value >> 24) & 0xFF;
+    u.bytes[1] = (big_endian_value >> 16) & 0xFF;
+    u.bytes[2] = (big_endian_value >> 8) & 0xFF;
+    u.bytes[3] = big_endian_value & 0xFF;
+    return u.u32;
+}
 
 /*  IdxFile
  */

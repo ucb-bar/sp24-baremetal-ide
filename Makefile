@@ -4,40 +4,32 @@
 # Execution Procedure: 
 # make mnist --> compile C-binaries
 # make test_mnist --> run C-binaries
+include src/Makefile
 
-RM=rm -f
-CC=cc -O -Wall -std=c11 -pedantic
+
+CC=gcc -O -Wall -std=c11 -pedantic
 CURL=curl
 GZIP=gzip
 
-LIBS=-lm endian.h convolution-api.h
+DOWNLOAD_URL= https://ossci-datasets.s3.amazonaws.com/mnist
+DATADIR=data
 
-DATADIR=./data
 MNIST_FILES= \
 	$(DATADIR)/train-images-idx3-ubyte \
 	$(DATADIR)/train-labels-idx1-ubyte \
 	$(DATADIR)/t10k-images-idx3-ubyte \
 	$(DATADIR)/t10k-labels-idx1-ubyte
 
-all: test_rnn
-
-clean:
-	-$(RM) ./bnn ./mnist ./rnn *.o
+all: get_mnist mnist test_mnist
 
 get_mnist:
 	-mkdir ./data
-	-$(CURL) http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz | \
+	-$(CURL) $(DOWNLOAD_URL)/train-images-idx3-ubyte.gz | \
 		$(GZIP) -dc > ./data/train-images-idx3-ubyte
-	-$(CURL) http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz | \
+	-$(CURL) $(DOWNLOAD_URL)/train-labels-idx1-ubyte.gz | \
 		$(GZIP) -dc > ./data/train-labels-idx1-ubyte
-	-$(CURL) http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz | \
+	-$(CURL) $(DOWNLOAD_URL)/t10k-images-idx3-ubyte.gz | \
 		$(GZIP) -dc > ./data/t10k-images-idx3-ubyte
-	-$(CURL) http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz | \
+	-$(CURL) $(DOWNLOAD_URL)/t10k-labels-idx1-ubyte.gz | \
 		$(GZIP) -dc > ./data/t10k-labels-idx1-ubyte
 
-mnist: mnist.c cnn.c
-	rm -rf mnist
-	$(CC) -o $@ $^ $(LIBS)
-
-test_mnist: ./mnist $(MNIST_FILES)
-	./mnist $(MNIST_FILES)

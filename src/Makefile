@@ -8,7 +8,7 @@
 # Include all directories with headers
 INCLUDE_DIR := ../include
 
-RM=rm -f
+RM=rm -rf
 CC=cc -O -Wall -std=c11 -pedantic
 
 # RISC-V Compiler related steps
@@ -17,28 +17,32 @@ libgloss_specs := htif_nano.specs
 CFLAGS := -std=gnu11 -specs=$(libgloss_specs) -O2 -fno-common -fno-builtin-printf -Wall -Wextra $(CFLAGS)
 LDFLAGS := -static -specs=$(libgloss_specs) $(LDFLAGS)
 
-LIBS=-lm ../include/convolution-api.h
+LIBS=-lm include/convolution-api.h
 
-DATADIR=../data
+DATADIR=data
 MNIST_FILES= \
 	$(DATADIR)/train-images-idx3-ubyte \
 	$(DATADIR)/train-labels-idx1-ubyte \
 	$(DATADIR)/t10k-images-idx3-ubyte \
 	$(DATADIR)/t10k-labels-idx1-ubyte
 
-all: test_mnist
+all: mnist
 
 clean:
-	-$(RM) ./bnn ./mnist ./rnn *.o
+	-$(RM) mnist *.o
+	-$(RM) *.riscv
 
-mnist: mnist.c cnn.c
-	rm -rf mnist
+clean_data: 
+	-$(RM) data
+
+
+mnist: ./src/mnist.c ./src/cnn.c
 	$(CC) -o $@ $^ -I$(INCLUDE_DIR) $(LIBS)
 
 test_mnist: ./mnist $(MNIST_FILES)
 	./mnist $(MNIST_FILES)
 
-mnist_riscv: mnist.c cnn.c 
+mnist_riscv: ./src/mnist.c ./src/cnn.c
 	$(RVCC) $(LDFLAGS) -o mnist.riscv $^ -I$(INCLUDE_DIR) $(LIBS)
 
 
