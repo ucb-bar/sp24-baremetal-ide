@@ -10,3 +10,13 @@ One command. `make`
 
 1. `cd src`
 2. `make mnist_riscv`
+
+# How to run tests
+
+1. `make test`
+
+
+# How to add tests to run
+
+1. Add your test under the `TEST_FILES` variable in `tests/CMakeLists` 
+2. `make test`
