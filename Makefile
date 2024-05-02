@@ -33,3 +33,8 @@ get_mnist:
 	-$(CURL) $(DOWNLOAD_URL)/t10k-labels-idx1-ubyte.gz | \
 		$(GZIP) -dc > ./data/t10k-labels-idx1-ubyte
 
+.PHONY: test
+test: $(TEST_FILES)
+	mkdir -p build/tests
+	cd build/tests && cmake ../../tests && make && ctest
+
