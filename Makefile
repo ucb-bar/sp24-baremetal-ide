@@ -35,6 +35,7 @@ get_mnist:
 
 .PHONY: test
 test: $(TEST_FILES)
-	mkdir -p build/tests
-	cd build/tests && cmake ../../tests && make && ctest
+	cmake -B build/
+	$(MAKE) -C build/tests
+	cd build && ctest 
 

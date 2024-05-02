@@ -13,7 +13,7 @@
 #include "cnn.h"
 
 /* be32toh */
-uint32_t be32toh(uint32_t big_endian_value) {
+uint32_t mybe32toh(uint32_t big_endian_value) {
     union {
         uint32_t u32;
         uint8_t bytes[4];
@@ -68,7 +68,7 @@ IdxFile* IdxFile_read(FILE* fp)
         uint32_t nbytes = sizeof(uint8_t);
         for (int i = 0; i < self->ndims; i++) {
             /* Fix the byte order. */
-            uint32_t size = be32toh(self->dims[i]);
+            uint32_t size = mybe32toh(self->dims[i]);
 #if DEBUG_IDXFILE
             fprintf(stderr, "IdxFile_read: size[%d]=%u\n", i, size);
 #endif

@@ -12,6 +12,7 @@ set(SRC_DIR src)
 set(SRC_FILES
     ${SRC_DIR}/cnn.c
     ${SRC_DIR}/mnist.c
+    ${SRC_DIR}/cnn.h
     # Add more source files as needed
 )
 
