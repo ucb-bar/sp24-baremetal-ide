@@ -60,11 +60,6 @@ void app_init() {
   uart_init(UART0, &UART_init_config);
 }
 
-
-
-void app_main() {
-  puts("Hello World!");
-}
 /* USER CODE END PUC */
 
 /**
@@ -86,10 +81,11 @@ int main(int argc, char **argv) {
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1) {
-    app_main();
-    // return 0;
-  }
+  char name[50];
+  puts("Enter your name: ");
+  scanf("%s", name);
+  printf("Hello, %s", name);
+  
   /* USER CODE END WHILE */
 }
 
