@@ -93,11 +93,11 @@ add_link_options(-T ${LINKER_SCRIPT})
 # Build
 #################################
 
-add_executable(shmoo_bench/sparse_accel_bench/
-  src/main.c
+add_executable(shmoo_bench
+  shmoo_bench/sparse_accel_bench/src/main.c
 )
 
-target_include_directories(shmoo_bench/sparse_accel_bench PUBLIC include)
+target_include_directories(shmoo_bench PUBLIC shmoo_bench/sparse_accel_bench/include)
 
 
 #################################
@@ -109,7 +109,7 @@ add_subdirectory(glossy)
 add_subdirectory(lib)
 # add_subdirectory(examples)
 
-target_link_libraries(shmoo_bench/sparse_accel_bench PRIVATE 
+target_link_libraries(shmoo_bench PRIVATE 
   -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
 )
 
