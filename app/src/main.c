@@ -15,6 +15,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fft_data.h"
 #include "chip_config.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -58,12 +59,43 @@ void app_init() {
 
 
 
+// Addresses for writing data
+#define DMA_ADDR1 0x87000000L // address for FFT
+
 void app_main() {
   uint64_t mhartid = READ_CSR("mhartid");
+  printf("sadly unalive myself from hart : %d\r\n", mhartid);
 
-  while(1) {
-    printf("sadly unalive myself from hart : %d\r\n", mhartid);
-  }
+  puts("\n[STARTING TEST]\n\n");
+    // Setup FFT stuff
+    puts("Setup params for FFT");
+    reset_fft();
+
+    // Start DMA
+    enable_Crack();
+    printf("Starting blocks\n");
+    write_fft_dma(1, fft_len, fft_data);
+    
+    // check if FFT is complete cause its blocking (bad)
+    printf("[Blocks are cooking]\n");
+    while(fft_busy() || fft_count_left()){
+        printf("pain:%d, %d \n", fft_busy(), fft_count_left());
+    }; // This is needed since fft is blocking and is not a very good block
+    read_fft_dma(1, fft_len, DMA_ADDR1);
+
+
+
+    // Check blocks output
+    printf("\nTest Output (FFT): \n");
+    uint32_t poll;
+    // for(int i=0; i<fft_len; i++) { // We only print the first couple points
+    for(int i=0; i<30; i++) {
+        poll = reg_read32(DMA_ADDR1 + i*8);
+        uint32_t real = poll & 0xFFFF;
+        uint32_t imag = (poll >> 16);
+        printf("[%d]real: (%hd), imag: (%hd)\n", i, real, imag);
+    }
+    printf("\n[DONE TEST]\n\n");
 }
 /* USER CODE END PUC */
 
