@@ -19,7 +19,7 @@ MNIST_FILES= \
 	$(DATADIR)/t10k-images-idx3-ubyte \
 	$(DATADIR)/t10k-labels-idx1-ubyte
 
-all: get_mnist mnist 
+all: get_mnist mnist_unix 
 
 get_mnist:
 	-mkdir ./data
