@@ -20,3 +20,8 @@ One command. `make`
 
 1. Add your test under the `TEST_FILES` variable in `tests/CMakeLists` 
 2. `make test`
+
+## Organization:
+
+"networks" folder contains the list of different neural networks you can train, which is then exported as a 
+static library.

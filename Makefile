@@ -4,12 +4,11 @@
 # Execution Procedure: 
 # make mnist --> compile C-binaries
 # make test_mnist --> run C-binaries
-include src/Makefile
-
 
 CC=gcc -O -Wall -std=c11 -pedantic
 CURL=curl
 GZIP=gzip
+CMAKE=cmake
 
 DOWNLOAD_URL= https://ossci-datasets.s3.amazonaws.com/mnist
 DATADIR=data
@@ -20,7 +19,7 @@ MNIST_FILES= \
 	$(DATADIR)/t10k-images-idx3-ubyte \
 	$(DATADIR)/t10k-labels-idx1-ubyte
 
-all: get_mnist mnist test_mnist
+all: get_mnist mnist 
 
 get_mnist:
 	-mkdir ./data
@@ -33,9 +32,10 @@ get_mnist:
 	-$(CURL) $(DOWNLOAD_URL)/t10k-labels-idx1-ubyte.gz | \
 		$(GZIP) -dc > ./data/t10k-labels-idx1-ubyte
 
-.PHONY: test
-test: $(TEST_FILES)
-	cmake -B build/
-	$(MAKE) -C build/tests
-	cd build && ctest 
+mnist_unix:
+	$(CC) -S ./ -B ./build/ -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -D CHIP=labchip
+	cmake --build ./build/ --target blinky
 
+mnist_windows: 
+	$(CC) -S ./ -B ./build/ -G "Unix Makefiles" -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmakec.o
+	cmake --build ./build/ --target blinky
