@@ -16,3 +16,12 @@ make debug ./build/borai.elf
 
 This command will automatically start an OpenOCD server with the proper BearlyML'24 chip configuration, as well as a GDB window with a server connection initialized. Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
 
+## Converting Binary Files to Headers
+
+Within the `borai_scripts` directory up one level, you can use the `bin2array.py` command-line tool in the following manner:
+
+```bash
+python3 bin2array.py -b ./stories260K.bin -o ./weights.h -n WEIGHTS
+```
+
+This will create a header file with a single variable of the name `WEIGHTS`, which contains the data stored within `./stories260K.bin`.
