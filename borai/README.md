@@ -11,10 +11,15 @@ make borai
 This will produce an ELF binary file at `./build/borai/borai.elf`. A JTAG interface can then be initialized using
 
 ```bash
-make debug ./build/borai/borai.elf
+make ocd CHIP=bearly24
 ```
 
-This command will automatically start an OpenOCD server with the proper BearlyML'24 chip configuration, as well as a GDB window with a server connection initialized. Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
+This command will automatically start an OpenOCD server with the proper BearlyML'24 chip configuration. We can then initialize a GDB interface with a server connection using
+```
+make gdb ./build/borai/borai.elf
+```
+
+Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
 
 ## Compiling and Running BorAIq (with Int8 Matmul)
 
@@ -25,8 +30,15 @@ make boraiq
 This will produce an ELF binary file at `./build/borai/boraiq.elf`. A JTAG interface can then be initialized using
 
 ```bash
-make debug ./build/borai/boraiq.elf
+make ocd CHIP=bearly24
 ```
+
+This command will automatically start an OpenOCD server with the proper BearlyML'24 chip configuration. We can then initialize a GDB interface with a server connection using
+```
+make gdb ./build/borai/boraiq.elf
+```
+
+Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
 
 ## Converting Binary Files to Headers
 

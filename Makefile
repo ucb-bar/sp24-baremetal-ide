@@ -32,7 +32,21 @@ endif
 
 .PHONY: debug
 debug:
-	@openocd -f ./debug/$(CHIP).cfg & $(DG) $(DEBUGGER_ARGS) --eval-command="target extended-remote localhost:3333" --eval-command="monitor reset"
+	@openocd -f ./platform/$(CHIP)/$(CHIP).cfg & $(DG) $(DEBUGGER_ARGS) --eval-command="target extended-remote localhost:3333" --eval-command="monitor reset"
+
+.PHONY: ocd
+ocd:
+	openocd -f ./platform/$(CHIP)/$(CHIP).cfg
+
+ifeq (gdb,$(firstword $(MAKECMDGOALS)))
+  # use the rest as arguments for "debug", ignoring them
+  DEBUGGER_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(DEBUGGER_ARGS):;@:)
+endif
+
+.PHONY: gdb
+gdb:
+	$(DG) $(DEBUGGER_ARGS) --eval-command="target extended-remote localhost:3333" --eval-command="monitor reset"
 
 .PHONY: clean
 clean:
