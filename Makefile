@@ -16,9 +16,13 @@ bearly24:
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=bearly24
 	cmake --build ./build/ --target app
 
-borai:
+borai: borai/*
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=bearly24
 	cmake --build ./build/ --target borai
+
+boraiq: boraiq/*
+	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=bearly24
+	cmake --build ./build/ --target boraiq
 
 ifeq (debug,$(firstword $(MAKECMDGOALS)))
   # use the rest as arguments for "debug", ignoring them

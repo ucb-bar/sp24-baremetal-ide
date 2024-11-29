@@ -104,6 +104,12 @@ add_executable(borai
 
 target_include_directories(borai PUBLIC borai/include)
 
+add_executable(boraiq
+  boraiq/src/main.c
+)
+
+target_include_directories(boraiq PUBLIC boraiq/include)
+
 
 #################################
 # Dependencies
@@ -122,6 +128,9 @@ target_link_libraries(borai PRIVATE
   -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
 )
 
+target_link_libraries(boraiq PRIVATE 
+  -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
+)
 
 #################################
 # Library Installation
