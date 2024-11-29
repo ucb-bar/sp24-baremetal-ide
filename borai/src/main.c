@@ -27,7 +27,6 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include <math.h>
 #include "main.h"
 #include "chip_config.h"
 
@@ -516,8 +515,15 @@ char* decode(Tokenizer* t, int prev_token, int token) {
     if (prev_token == 1 && piece[0] == ' ') { piece++; }
     // careful, some tokens designate raw bytes, and look like e.g. '<0x01>'
     // parse this and convert and return the actual byte
+
+    // sscanf replaced with not sscanf
     unsigned char byte_val;
-    if (sscanf(piece, "<0x%02hhX>", &byte_val) == 1) {
+    if (piece[0] == '<' && piece[1] == '0' && piece[2] == 'x' && piece[5] == '>') {
+        char hex[3];
+        hex[0] = piece[3];
+        hex[1] = piece[4];
+        hex[2] = '\0';
+        byte_val = (unsigned char) strtol(hex, NULL, 16);
         piece = (char*)t->byte_pieces + byte_val * 2;
     }
     return piece;
