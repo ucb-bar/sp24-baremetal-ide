@@ -26,6 +26,7 @@ This will produce an ELF binary file at `./build/boraiq.elf`. A JTAG interface c
 
 ```bash
 make debug ./build/boraiq.elf
+```
 
 ## Converting Binary Files to Headers
 
