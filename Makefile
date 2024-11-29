@@ -20,13 +20,15 @@ borai:
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=bearly24
 	cmake --build ./build/ --target borai
 
-.PHONY: debug
-debug: $(TARGET_BIN)
-	@openocd -f ./debug/$(CHIP).cfg & $(DG) --eval-command="target extended-remote localhost:3333"
+ifeq (debug,$(firstword $(MAKECMDGOALS)))
+  # use the rest as arguments for "debug", ignoring them
+  DEBUGGER_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(DEBUGGER_ARGS):;@:)
+endif
 
-.PHONY: upload
-upload: $(TARGET_BIN)
-	@openocd -f ./debug/$(CHIP).cfg $(UPLOAD_COMMANDS_SRAM)
+.PHONY: debug
+debug:
+	@openocd -f ./debug/$(CHIP).cfg & $(DG) $(DEBUGGER_ARGS) --eval-command="target extended-remote localhost:3333" --eval-command="monitor reset"
 
 .PHONY: clean
 clean:
