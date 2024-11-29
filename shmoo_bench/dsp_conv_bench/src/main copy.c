@@ -41,25 +41,33 @@ void app_main() {
     puts("\r\nStarting test");
     reg_write8(RESET_ADDR, 1);
 
-    // https://bwrcrepo.eecs.berkeley.edu/ee290c_ee194_intech22/sp24-chips/-/wikis/digital/dsp24/Programming-Interfaces#convolution-accelerator
+
     // reg_write8(INPUT_TYPE_ADDR, 0);
     int8_t in_arr[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
     uint32_t in_len[1] = {16};
     uint16_t in_dilation[1] = {1};
-    uint16_t in_kernel[8] = {0x4000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}; // {2, 0, 0, 0, 0, 0, 0, 0} in FP16              
+    uint16_t in_kernel[8] = {0x4000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}; // {2, 0, 0, 0, 0, 0, 0, 0} in FP16                                    
 
     puts("\r\nSetting values of MMIO registers");
-    set_conv_params(16, 1, ((uint64_t*) in_kernel));         // &in_kernel?             
-    write_conv_dma(0, 16, in_arr);
+    asm volatile ("fence");
+    reg_write64(INPUT_ADDR, *((uint64_t*) (in_arr)));
+    asm volatile ("fence");
+    reg_write64(INPUT_ADDR, *((uint64_t*) (in_arr + 8)));
+    asm volatile ("fence");
+
+    reg_write32(LENGTH_ADDR, 16);
+    reg_write16(DILATION_ADDR, in_dilation[0]);
+
+    asm volatile ("fence");
+    reg_write64(KERNEL_ADDR, *((uint64_t*) in_kernel));         // 64 bits: 4 FP16s
+    asm volatile ("fence");
+    reg_write64(KERNEL_ADDR, *((uint64_t*) (in_kernel + 4)));   // 64 bits: 4 FP16s (Total 8)
+    asm volatile ("fence");
 
     uint64_t cpu_start_cycles = READ_CSR("mcycle");
     puts("\r\nStarting Convolution");
     asm volatile ("fence");
-    start_conv();
-
-    uint64_t cpu_end_cycles = READ_CSR("mcycle");
-
-    asm volatile ("fence");
+    reg_write8(START_ADDR, 1);
 
     puts("\r\nWaiting for convolution to complete");
     
@@ -68,11 +76,19 @@ void app_main() {
         printf("%d ", in_arr[i]);
     }
 
+    asm volatile ("fence");
+
+    uint64_t cpu_end_cycles = READ_CSR("mcycle");
+
+    asm volatile ("fence");
+
     uint16_t test_out[32];
-    read_conv_dma(0, 16, ((uint64_t*) test_out));
     printf("\r\nTest Output (FP16 binary): ");
     for (int i = 0; i < 4; i++) {
+        uint64_t current_out = reg_read64(OUTPUT_ADDR);
+        uint16_t* unpacked_out = (uint16_t*) &current_out;
         for (int j = 0; j < 4; j++) {
+            test_out[i*4 + j] = unpacked_out[j];
             printf("0x%"PRIx64" ", test_out[i*4 + j]);
         }
     }
