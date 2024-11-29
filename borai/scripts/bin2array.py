@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import argparse
 
 def bin_to_c_array(bin_file_path, header_file_path, array_name, n_items_per_line=256):

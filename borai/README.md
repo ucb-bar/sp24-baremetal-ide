@@ -52,7 +52,7 @@ options:
 We can, for example, convert weights in the following manner:
 
 ```bash
-python3 bin2array.py -b ./stories260K.bin -o ./weights.h -n WEIGHTS
+./bin2array.py -b ./stories260K.bin -o ./weights.h -n WEIGHTS
 ```
 
 This will create a header file with a single variable of the name `WEIGHTS`, which contains the data stored within `./stories260K.bin`.
