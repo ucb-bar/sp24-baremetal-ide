@@ -68,7 +68,7 @@ endif()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/platform/${CHIP})
 
-add_compile_options(-O1)
+add_compile_options(-O3)
 add_compile_options(-Wall -Wextra)
 add_compile_options(-s)
 
@@ -87,7 +87,6 @@ add_link_options(${SPEC_FLAGS})
 add_link_options(-T ${LINKER_SCRIPT})
 
 
-
 #################################
 # Build
 #################################
@@ -98,18 +97,6 @@ add_executable(app
 
 target_include_directories(app PUBLIC app/include)
 
-add_executable(borai
-  borai/fp32/src/main.c
-)
-
-target_include_directories(borai PUBLIC borai/fp32/include)
-
-add_executable(boraiq
-  borai/int8/src/main.c
-)
-
-target_include_directories(boraiq PUBLIC borai/int8/include)
-
 
 #################################
 # Dependencies
@@ -119,18 +106,12 @@ add_subdirectory(driver)
 add_subdirectory(glossy)
 add_subdirectory(lib)
 # add_subdirectory(examples)
+add_subdirectory(borai)
 
 target_link_libraries(app PRIVATE 
   -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
 )
 
-target_link_libraries(borai PRIVATE 
-  -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
-)
-
-target_link_libraries(boraiq PRIVATE 
-  -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
-)
 
 #################################
 # Library Installation

@@ -16,11 +16,11 @@ bearly24:
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=bearly24
 	cmake --build ./build/ --target app
 
-borai: borai/*
+borai:
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=bearly24
 	cmake --build ./build/ --target borai
 
-boraiq: boraiq/*
+boraiq:
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=bearly24
 	cmake --build ./build/ --target boraiq
 
