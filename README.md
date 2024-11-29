@@ -1,5 +1,9 @@
 ![](docs/logo_b.png)
 
+# BearlyML'24 Baremetal LLaMA2
+
+This is a port of the [llama2.c](https://github.com/karpathy/llama2.c/tree/master) inferencing system to work with the BearlyML'24 tapeout chip from Spring 2024.
+
 # Chipyard Baremetal-IDE
 
 ![CI-status](https://img.shields.io/github/actions/workflow/status/ucb-bar/Baremetal-IDE/make-examples.yaml?branch=main&style=flat-square&label=CI&logo=githubactions&logoColor=fff) ![API-Docs-status](https://img.shields.io/github/actions/workflow/status/ucb-bar/Baremetal-IDE/build-docs.yaml?branch=main&style=flat-square&label=Docs&logo=googledocs&logoColor=fff)

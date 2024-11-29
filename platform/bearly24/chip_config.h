@@ -46,7 +46,7 @@ extern "C" {
 #define PLIC                    ((PLIC_Type *)PLIC_BASE)
 #define PLIC_CC                 ((PLIC_ContextControl_Type *)(PLIC_BASE + 0x00200000U))
 #define UART0                   ((UART_Type *)UART0_BASE)
-
+#define UART1                   ((UART_Type *)(UART0_BASE + 0x00001000U))
 
 
 #ifdef __cplusplus

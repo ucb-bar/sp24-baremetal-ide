@@ -98,6 +98,12 @@ add_executable(app
 
 target_include_directories(app PUBLIC app/include)
 
+add_executable(borai
+  borai/src/main.c
+)
+
+target_include_directories(borai PUBLIC borai/include)
+
 
 #################################
 # Dependencies
@@ -109,6 +115,10 @@ add_subdirectory(lib)
 # add_subdirectory(examples)
 
 target_link_libraries(app PRIVATE 
+  -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
+)
+
+target_link_libraries(borai PRIVATE 
   -L${CMAKE_BINARY_DIR}/glossy -Wl,--whole-archive glossy -Wl,--no-whole-archive
 )
 
