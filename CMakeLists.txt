@@ -99,16 +99,16 @@ add_executable(app
 target_include_directories(app PUBLIC app/include)
 
 add_executable(borai
-  borai/src/main.c
+  borai/fp32/src/main.c
 )
 
-target_include_directories(borai PUBLIC borai/include)
+target_include_directories(borai PUBLIC borai/fp32/include)
 
 add_executable(boraiq
-  boraiq/src/main.c
+  borai/int8/src/main.c
 )
 
-target_include_directories(boraiq PUBLIC boraiq/include)
+target_include_directories(boraiq PUBLIC borai/int8/include)
 
 
 #################################

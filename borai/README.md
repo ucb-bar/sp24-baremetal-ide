@@ -16,9 +16,20 @@ make debug ./build/borai.elf
 
 This command will automatically start an OpenOCD server with the proper BearlyML'24 chip configuration, as well as a GDB window with a server connection initialized. Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
 
+## Compiling and Running BorAIq (with Int8 Matmul)
+
+```bash
+make boraiq
+```
+
+This will produce an ELF binary file at `./build/boraiq.elf`. A JTAG interface can then be initialized using
+
+```bash
+make debug ./build/boraiq.elf
+
 ## Converting Binary Files to Headers
 
-Within the `borai_scripts` directory up one level, you can use the `bin2array.py` command-line tool to convert a binary file into a C header array.
+Within the `scripts` directory, you can use the `bin2array.py` command-line tool to convert a binary file into a C header array.
 
 ```
 usage: bin2array [-h] -b BINARY -o OUTPUT -n VARNAME [-c ROWCOUNT]
