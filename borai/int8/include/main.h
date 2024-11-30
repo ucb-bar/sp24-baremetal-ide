@@ -53,12 +53,17 @@ extern "C" {
 
 /* Private defines -----------------------------------------------------------*/
 /* USER CODE BEGIN Private defines */
-
+#define MODEL_MAGIC_NUMBER 0x616b3432
+#define MODEL_VERSION_INT8 2
+#define MODEL_V2_HEADER_SIZE 256
 /* USER CODE END Private defines */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+typedef enum {
+    GENERATE,
+    CHAT
+} GenMode;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

@@ -28,7 +28,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "chip_config.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -52,8 +51,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-const unsigned char *ASCII_CRLF = (const unsigned char *) "\r\n";
-const unsigned char *ASCII_BEL = (const unsigned char *) "\a";
 
 /* USER CODE END PV */
 
@@ -65,63 +62,6 @@ const unsigned char *ASCII_BEL = (const unsigned char *) "\a";
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN PUC */
-
-typedef struct {
-    int dim; // transformer dimension
-    int hidden_dim; // for ffn layers
-    int n_layers; // number of layers
-    int n_heads; // number of query heads
-    int n_kv_heads; // number of key/value heads (can be < query heads because of multiquery)
-    int vocab_size; // vocabulary size, usually 256 (byte-level)
-    int seq_len; // max sequence length
-} Config;
-
-typedef struct {
-    // token embedding table
-    float* token_embedding_table;    // (vocab_size, dim)
-    // weights for rmsnorms
-    float* rms_att_weight; // (layer, dim) rmsnorm weights
-    float* rms_ffn_weight; // (layer, dim)
-    // weights for matmuls. note dim == n_heads * head_size
-    float* wq; // (layer, dim, n_heads * head_size)
-    float* wk; // (layer, dim, n_kv_heads * head_size)
-    float* wv; // (layer, dim, n_kv_heads * head_size)
-    float* wo; // (layer, n_heads * head_size, dim)
-    // weights for ffn
-    float* w1; // (layer, hidden_dim, dim)
-    float* w2; // (layer, dim, hidden_dim)
-    float* w3; // (layer, hidden_dim, dim)
-    // final rmsnorm
-    float* rms_final_weight; // (dim,)
-    // (optional) classifier weights for the logits, on the last layer
-    float* wcls;
-} TransformerWeights;
-
-typedef struct {
-    // current wave of activations
-    float *x; // activation at current time stamp (dim,)
-    float *xb; // same, but inside a residual branch (dim,)
-    float *xb2; // an additional buffer just for convenience (dim,)
-    float *hb; // buffer for hidden dimension in the ffn (hidden_dim,)
-    float *hb2; // buffer for hidden dimension in the ffn (hidden_dim,)
-    float *q; // query (dim,)
-    float *k; // key (dim,)
-    float *v; // value (dim,)
-    float *att; // buffer for scores/attention values (n_heads, seq_len)
-    float *logits; // output logits
-    // kv cache
-    float* key_cache;   // (layer, seq_len, dim)
-    float* value_cache; // (layer, seq_len, dim)
-} RunState;
-
-typedef struct {
-    Config config; // the hyperparameters of the architecture (the blueprint)
-    TransformerWeights weights; // the weights of the model
-    RunState state; // buffers for the "wave" of activations in the forward pass
-    // some more state needed to properly clean up the memory mapping (sigh)
-    float* data; // memory mapped data pointer
-    ssize_t file_size; // size of the checkpoint file in bytes
-} Transformer;
 
 void malloc_run_state(RunState* s, Config* p) {
     // we calloc instead of malloc to keep valgrind happy
@@ -139,8 +79,12 @@ void malloc_run_state(RunState* s, Config* p) {
     // ensure all mallocs went fine
     if (!s->x || !s->xb || !s->xb2 || !s->hb || !s->hb2 || !s->q
      || !s->key_cache || !s->value_cache || !s->att || !s->logits) {
-        printf("STDERR: malloc failed!\n");
-        exit(EXIT_FAILURE);
+        printf("STDERR: malloc failed!\r\n");
+
+        printf("size: %d\r\n", p->n_layers * p->seq_len * kv_dim * sizeof(float));
+        printf("s->q: %x\r\n", s->q);
+        printf("key_cache: %x\r\n", s->key_cache);
+        // exit(EXIT_FAILURE);
     }
 }
 
@@ -187,28 +131,6 @@ void memory_map_weights(TransformerWeights *w, Config* p, float* ptr, int shared
     ptr += p->seq_len * head_size / 2; // skip what used to be freq_cis_imag (for RoPE)
     w->wcls = shared_weights ? w->token_embedding_table : ptr;
 }
-
-// void read_checkpoint(char* checkpoint, Config* config, TransformerWeights* weights,
-//                      int* fd, float** data, ssize_t* file_size) {
-//     FILE *file = fopen(checkpoint, "rb");
-//     if (!file) { printf("STDERR: Couldn't open file %s\n", checkpoint); exit(EXIT_FAILURE); }
-//     // read in the config header
-//     if (fread(config, sizeof(Config), 1, file) != 1) { exit(EXIT_FAILURE); }
-//     // negative vocab size is hacky way of signaling unshared weights. bit yikes.
-//     int shared_weights = config->vocab_size > 0 ? 1 : 0;
-//     config->vocab_size = abs(config->vocab_size);
-//     // figure out the file size
-//     fseek(file, 0, SEEK_END); // move file pointer to end of file
-//     *file_size = ftell(file); // get the file size, in bytes
-//     fclose(file);
-//     // memory map the Transformer weights into the data pointer
-//     *fd = open(checkpoint, O_RDONLY); // open in read only mode
-//     if (*fd == -1) { printf("STDERR: open failed!\n"); exit(EXIT_FAILURE); }
-//     *data = mmap(NULL, *file_size, PROT_READ, MAP_PRIVATE, *fd, 0);
-//     if (*data == MAP_FAILED) { printf("STDERR: mmap failed!\n"); exit(EXIT_FAILURE); }
-//     float* weights_ptr = *data + sizeof(Config)/sizeof(float);
-//     memory_map_weights(weights, config, weights_ptr, shared_weights);
-// }
 
 void read_checkpoint_from_header(Config* config, TransformerWeights* weights, float** data, ssize_t* file_size) {
   // load from weights.h WEIGHTS
@@ -424,20 +346,6 @@ float* forward(Transformer* transformer, int token, int pos) {
 // ----------------------------------------------------------------------------
 // The Byte Pair Encoding (BPE) Tokenizer that translates strings <-> tokens
 
-typedef struct {
-    char *str;
-    int id;
-} TokenIndex;
-
-typedef struct {
-    char** vocab;
-    float* vocab_scores;
-    TokenIndex *sorted_vocab;
-    int vocab_size;
-    unsigned int max_token_length;
-    unsigned char byte_pieces[512]; // stores all single-byte strings
-} Tokenizer;
-
 int compare_tokens(const void *a, const void *b) {
     return strcmp(((TokenIndex*)a)->str, ((TokenIndex*)b)->str);
 }
@@ -553,7 +461,7 @@ int str_lookup(char *str, TokenIndex *sorted_vocab, int vocab_size) {
 void encode(Tokenizer* t, char *text, int8_t bos, int8_t eos, int *tokens, int *n_tokens) {
     // encode the string text (input) into an upper-bound preallocated tokens[] array
     // bos != 0 means prepend the BOS token (=1), eos != 0 means append the EOS token (=2)
-    if (text == NULL) { printf("STDERR: cannot encode NULL text\n"); exit(EXIT_FAILURE); }
+    if (text == NULL) { printf("STDERR: cannot encode NULL text\r\n"); exit(EXIT_FAILURE); }
 
     if (t->sorted_vocab == NULL) {
         // lazily malloc and sort the vocabulary
@@ -674,19 +582,6 @@ void encode(Tokenizer* t, char *text, int8_t bos, int8_t eos, int *tokens, int *
 // ----------------------------------------------------------------------------
 // The Sampler, which takes logits and returns a sampled token
 // sampling can be done in a few ways: greedy argmax, sampling, top-p sampling
-
-typedef struct {
-    float prob;
-    int index;
-} ProbIndex; // struct used when sorting probabilities during top-p sampling
-
-typedef struct {
-    int vocab_size;
-    ProbIndex* probindex; // buffer used in top-p sampling
-    float temperature;
-    float topp;
-    unsigned long long rng_state;
-} Sampler;
 
 int sample_argmax(float* probabilities, int n) {
     // return the index that has the highest probability
@@ -836,8 +731,8 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
     int* prompt_tokens = (int*)malloc((strlen(prompt)+3) * sizeof(int)); // +3 for '\0', ?BOS, ?EOS
     encode(tokenizer, prompt, 1, 0, prompt_tokens, &num_prompt_tokens);
     if (num_prompt_tokens < 1) {
-        printf("STDERR: something is wrong, expected at least 1 prompt token\n");
-        exit(EXIT_FAILURE);
+        printf("STDERR: something is wrong, expected at least 1 prompt token\r\n");
+        // exit(EXIT_FAILURE);
     }
 
     // start the main loop
@@ -866,18 +761,18 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
         // print the token as string, decode it with the Tokenizer object
         char* piece = decode(tokenizer, token, next);
         safe_printf(piece); // same as printf("%s", piece), but skips "unsafe" bytes
-        // fflush(stdout);
+        fflush(stdout);
         token = next;
 
         // init the timer here because the first iteration can be slower
         if (start == 0) { start = CLINT->MTIME; }
     }
-    printf("\n");
+    printf("\r\n");
 
     // report achieved tok/s (pos-1 because the timer starts after first iteration)
     if (pos > 1) {
         long end = CLINT->MTIME;
-        printf("STDERR: achieved tok/s: %f\n", (pos-1) / (double)(end-start)*1000);
+        printf("STDERR: achieved tok/s: %f\r\n", (pos-1) / (double)(end-start)*1000);
     }
 
     free(prompt_tokens);
@@ -894,13 +789,13 @@ void read_stdin(const char* guide, char* buffer, size_t bufsize) {
   // }
   size_t char_offset = 0;
   size_t upper_bufsize_bound = bufsize - 1;
-  printf("%s", guide);
-
+  printf("%s\r\n", guide);
+  fflush(stdout);
   while(1) {
     unsigned char input_char = '\0';
     uart_receive(UART0, &input_char, 1, 100);
 
-    if (input_char == '\b' && char_offset > 0) {
+    if ((input_char == '\b' || input_char == '\177' || input_char == 0x7F) && char_offset > 0) {
       // Backspace handling
       uart_transmit(UART0, &input_char, 1, 100);
       char_offset--;
@@ -1004,18 +899,18 @@ void chat(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler,
             // the Assistant is responding, so print its output
             char* piece = decode(tokenizer, token, next);
             safe_printf(piece); // same as printf("%s", piece), but skips "unsafe" bytes
-            // fflush(stdout);
+            fflush(stdout);
         }
-        if (next == 2) { printf("\n"); }
+        if (next == 2) { printf("\r\n"); }
     }
-    printf("\n");
+    printf("\r\n");
     free(prompt_tokens);
 }
 
 
 void app_main() {
   uint64_t mhartid = READ_CSR("mhartid");
-  printf("Started BorAI Inference Engine on hard ID %lu\r\n", mhartid);
+  printf("Started BorAI Inference Engine on hart ID %lu\r\n", mhartid);
 
   // Parameters //
   float temperature = 0.8f;   // 0.0 = greedy deterministic. 1.0 = original. don't set higher
@@ -1023,7 +918,7 @@ void app_main() {
   int steps = 512;            // number of steps to run for
   char *prompt = NULL;        // prompt string (I have it set up to ask screen if not given)
   unsigned long long rng_seed = CLINT->MTIME; // seed rng with time by default
-  char *mode = "generate";    // generate|chat
+  GenMode mode = CHAT;    // generate|chat
   char *system_prompt = NULL; // the (optional) system prompt to use in chat mode (I have it set up to ask screen if not given)
 
   // Parameter validation and overrides
@@ -1048,12 +943,16 @@ void app_main() {
 
   while (1) {
     // Disabled for testing. Should uncomment when ready for random stuff each run
-    // sampler.rng_state = CLINT->MTIME;
+    sampler.rng_state = CLINT->MTIME;
 
     // run!
-    generate(&transformer, &tokenizer, &sampler, prompt, steps);
+    if (mode == GENERATE) {
+        generate(&transformer, &tokenizer, &sampler, prompt, steps);
+    } else {
+        chat(&transformer, &tokenizer, &sampler, NULL, prompt, steps);
+    }
 
-    printf("========================================\n");
+    printf("========================================\r\n");
     msleep(1000);
   }
 }
@@ -1081,6 +980,10 @@ int main(int argc, char **argv) {
   UART1_init_config.stopbits = UART_STOPBITS_2;
   uart_init(UART1, &UART1_init_config);
 #endif
+
+  // Initialize heap storage
+  // init_heap(((volatile void*)DRAM_BASE), 0x04000000U);
+  // printf("Initialized heap memory from %x to %x.\r\n", heap_ptr, heap_end);
   /* USER CODE END SysInit */
 
   /* Infinite loop */

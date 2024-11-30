@@ -2,6 +2,7 @@
 
 add_executable(borai
   fp32/src/main.c
+  fp32/src/syscalls.c
 )
 
 target_include_directories(borai PUBLIC fp32/include)

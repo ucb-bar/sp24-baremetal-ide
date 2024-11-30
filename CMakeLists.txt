@@ -68,7 +68,7 @@ endif()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/platform/${CHIP})
 
-add_compile_options(-O3)
+add_compile_options(-O1)
 add_compile_options(-Wall -Wextra)
 add_compile_options(-s)
 

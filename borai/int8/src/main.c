@@ -163,8 +163,12 @@ void malloc_run_state(RunState* s, Config* p) {
     if (!s->x || !s->xb || !s->xb2 || !s->hb || !s->hb2 || !s->q
      || !s->k || !s->v || !s->att || !s->logits || !s->key_cache
      || !s->value_cache) {
-        fprintf(stderr, "malloc failed!\n");
-        exit(EXIT_FAILURE);
+        printf("STDERR: malloc failed!\r\n");
+        printf("size: %d\r\n", p->n_layers * p->seq_len * kv_dim * sizeof(float));
+        printf("s->q: %x\r\n", s->q);
+        printf("key_cache: %x\r\n", s->key_cache);
+
+        // exit(EXIT_FAILURE);
     }
 }
 
@@ -256,6 +260,13 @@ void memory_map_weights(TransformerWeights *w, Config* p, void* ptr, uint8_t sha
     w->q_tokens = init_quantized_tensors(&ptr, 1, p->vocab_size * p->dim);
     // dequantize token embedding table
     w->token_embedding_table = malloc(p->vocab_size * p->dim * sizeof(float));
+    if (!w->token_embedding_table) {
+        printf("STDERR: memory_map_weights: malloc failed when creating token_embedding_table!\r\n");
+        printf("STDERR: Attempt Size = %d\r\n", p->vocab_size * p->dim * sizeof(float));
+        printf("STDERR: p->vocab_size = %d\r\n", p->vocab_size);
+        printf("STDERR: p->dim = %d\r\n", p->dim);
+        printf("STDERR: sizeof(float) = %d\r\n", sizeof(float));
+    }
     dequantize(w->q_tokens, w->token_embedding_table, p->vocab_size * p->dim);
 
     w->wq = init_quantized_tensors(&ptr, p->n_layers, p->dim * (p->n_heads * head_size));
@@ -294,16 +305,57 @@ void memory_map_weights(TransformerWeights *w, Config* p, void* ptr, uint8_t sha
 // }
 
 void read_checkpoint_from_header(Config* config, TransformerWeights* weights, float** data, ssize_t* file_size) {
+  size_t cumulative_offset = 0;
+  printf("Loading checkpoint data...\r\n");
+  // Check magic number
+  uint32_t magic = *((uint32_t*)(WEIGHTS + cumulative_offset));
+  if (magic != MODEL_MAGIC_NUMBER) {
+    printf("Model magic number does not match! Please preprocess with export.py.\r\n");
+  }
+  printf("Magic number verified\r\n");
+  cumulative_offset += sizeof(uint32_t);
+
+  uint32_t version = *((uint32_t*)(WEIGHTS + cumulative_offset));
+  if (version != MODEL_VERSION_INT8) {
+    printf("Model version is not an Int8 Quantized model. Version (hex) = %x", version);
+  }
+  printf("Model is properly formatted as Int8 Quantized (Version 2).\r\n");
+  cumulative_offset += sizeof(uint32_t);
+  
   // load from weights.h WEIGHTS
-  memcpy(config, &WEIGHTS, sizeof(Config));
-  int shared_weights = config->vocab_size > 0 ? 1 : 0;
+  memcpy(config, (WEIGHTS + cumulative_offset), sizeof(Config));
+  cumulative_offset += sizeof(Config);
+  printf("Successfully loaded configuration structure.\r\n");
+  printf("\tTransformer Dimension:\t%d\r\n", config->dim);
+  printf("\tFFN Layer Dimension:\t%d\r\n", config->hidden_dim);
+  printf("\tLayer Count:\t%d\r\n", config->n_layers);
+  printf("\tQuery Head Count:\t%d\r\n", config->n_heads);
+  printf("\tKey/Value Head Count:\t%d\r\n", config->n_kv_heads);
+  printf("\tByte-Level Vocabulary Size:\t%d\r\n", config->vocab_size);
+  printf("\tMaximum Sequency Length:\t%d\r\n", config->seq_len);
+
+  // Check shared classifier byte
+  uint8_t shared_classifier = *((uint8_t*)(WEIGHTS + cumulative_offset));
+  if (shared_classifier != 1) {
+    printf("Non-shared classifier detected. Shared classifier byte value = %x", shared_classifier);
+  }
+  printf("Proper shared classifier detected.\r\n");
+  cumulative_offset += sizeof(uint8_t);
+
+  // Read group size
+  int32_t group_size = *((int32_t*)(WEIGHTS + cumulative_offset));
+  GS = group_size;
+  cumulative_offset += sizeof(int32_t);
+  printf("\tGroup Size:\t%d\r\n\r\n", GS);
+
+  // int shared_weights = config->vocab_size > 0 ? 1 : 0;
   config->vocab_size = abs(config->vocab_size);
   *file_size = sizeof(Config) + sizeof(WEIGHTS);
 
   // Point to WEIGHTS array as data
   *data = (float*)WEIGHTS;
-  float* weights_ptr = *data + sizeof(Config)/sizeof(float);
-  memory_map_weights(weights, config, weights_ptr, shared_weights);
+  float* weights_ptr = *data + MODEL_V2_HEADER_SIZE;
+  memory_map_weights(weights, config, weights_ptr, shared_classifier);
 }
 
 void build_transformer(Transformer *t) {
@@ -665,7 +717,7 @@ int str_lookup(char *str, TokenIndex *sorted_vocab, int vocab_size) {
 void encode(Tokenizer* t, char *text, int8_t bos, int8_t eos, int *tokens, int *n_tokens) {
     // encode the string text (input) into an upper-bound preallocated tokens[] array
     // bos != 0 means prepend the BOS token (=1), eos != 0 means append the EOS token (=2)
-    if (text == NULL) { printf("STDERR: cannot encode NULL text\n"); exit(EXIT_FAILURE); }
+    if (text == NULL) { printf("STDERR: cannot encode NULL text\r\n"); exit(EXIT_FAILURE); }
 
     if (t->sorted_vocab == NULL) {
         // lazily malloc and sort the vocabulary
@@ -933,12 +985,10 @@ int sample(Sampler* sampler, float* logits) {
 // ----------------------------------------------------------------------------
 // utilities: time
 
-// long time_in_ms() {
-//     // return time in milliseconds, for benchmarking the model speed
-//     struct timespec time;
-//     clock_gettime(CLOCK_REALTIME, &time);
-//     return time.tv_sec * 1000 + time.tv_nsec / 1000000;
-// }
+long time_in_ms() {
+    // return time in milliseconds, for benchmarking the model speed
+    return CLINT->MTIME / MTIME_FREQ / 1000;
+}
 
 // ----------------------------------------------------------------------------
 // generation loop
@@ -988,7 +1038,7 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
         // init the timer here because the first iteration can be slower
         if (start == 0) { start = CLINT->MTIME; }
     }
-    printf("\n");
+    printf("\r\n");
 
     // report achieved tok/s (pos-1 because the timer starts after first iteration)
     if (pos > 1) {
@@ -1011,6 +1061,7 @@ void read_stdin(const char* guide, char* buffer, size_t bufsize) {
   size_t char_offset = 0;
   size_t upper_bufsize_bound = bufsize - 1;
   printf("%s", guide);
+  fflush(stdout);
 
   while(1) {
     unsigned char input_char = '\0';
@@ -1120,18 +1171,18 @@ void chat(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler,
             // the Assistant is responding, so print its output
             char* piece = decode(tokenizer, token, next);
             safe_printf(piece); // same as printf("%s", piece), but skips "unsafe" bytes
-            // fflush(stdout);
+            fflush(stdout);
         }
-        if (next == 2) { printf("\n"); }
+        if (next == 2) { printf("\r\n"); }
     }
-    printf("\n");
+    printf("\r\n");
     free(prompt_tokens);
 }
 
 
 void app_main() {
   uint64_t mhartid = READ_CSR("mhartid");
-  printf("Started BorAI Inference Engine on hard ID %lu\r\n", mhartid);
+  printf("Started BorAIq (Int8 Quantized) Inference Engine on hart ID %lu\r\n", mhartid);
 
   // Parameters //
   float temperature = 0.8f;   // 0.0 = greedy deterministic. 1.0 = original. don't set higher
@@ -1139,7 +1190,7 @@ void app_main() {
   int steps = 512;            // number of steps to run for
   char *prompt = NULL;        // prompt string (I have it set up to ask screen if not given)
   unsigned long long rng_seed = CLINT->MTIME; // seed rng with time by default
-  char *mode = "generate";    // generate|chat
+  GenMode mode = GENERATE;    // generate|chat
   char *system_prompt = NULL; // the (optional) system prompt to use in chat mode (I have it set up to ask screen if not given)
 
   // Parameter validation and overrides
@@ -1164,12 +1215,16 @@ void app_main() {
 
   while (1) {
     // Disabled for testing. Should uncomment when ready for random stuff each run
-    // sampler.rng_state = CLINT->MTIME;
+    sampler.rng_state = CLINT->MTIME;
 
     // run!
-    generate(&transformer, &tokenizer, &sampler, prompt, steps);
+    if (mode == GENERATE) {
+        generate(&transformer, &tokenizer, &sampler, prompt, steps);
+    } else {
+        chat(&transformer, &tokenizer, &sampler, NULL, prompt, steps);
+    }
 
-    printf("========================================\n");
+    printf("========================================\r\n");
     msleep(1000);
   }
 }
