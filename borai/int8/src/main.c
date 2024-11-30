@@ -354,7 +354,7 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
 
   // Point to WEIGHTS array as data
   *data = (float*)WEIGHTS;
-  float* weights_ptr = *data + MODEL_V2_HEADER_SIZE;
+  void* weights_ptr = ((char*)*data) + MODEL_V2_HEADER_SIZE;
   memory_map_weights(weights, config, weights_ptr, shared_classifier);
 }
 
