@@ -260,13 +260,6 @@ void memory_map_weights(TransformerWeights *w, Config* p, void* ptr, uint8_t sha
     w->q_tokens = init_quantized_tensors(&ptr, 1, p->vocab_size * p->dim);
     // dequantize token embedding table
     w->token_embedding_table = malloc(p->vocab_size * p->dim * sizeof(float));
-    if (!w->token_embedding_table) {
-        printf("STDERR: memory_map_weights: malloc failed when creating token_embedding_table!\r\n");
-        printf("STDERR: Attempt Size = %d\r\n", p->vocab_size * p->dim * sizeof(float));
-        printf("STDERR: p->vocab_size = %d\r\n", p->vocab_size);
-        printf("STDERR: p->dim = %d\r\n", p->dim);
-        printf("STDERR: sizeof(float) = %d\r\n", sizeof(float));
-    }
     dequantize(w->q_tokens, w->token_embedding_table, p->vocab_size * p->dim);
 
     w->wq = init_quantized_tensors(&ptr, p->n_layers, p->dim * (p->n_heads * head_size));
@@ -354,7 +347,7 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
 
   // Point to WEIGHTS array as data
   *data = (float*)WEIGHTS;
-  void* weights_ptr = ((char*)*data) + MODEL_V2_HEADER_SIZE;
+  void* weights_ptr = ((char*)WEIGHTS) + MODEL_V2_HEADER_SIZE;
   memory_map_weights(weights, config, weights_ptr, shared_classifier);
 }
 
@@ -366,6 +359,7 @@ void build_transformer(Transformer *t) {
 }
 
 void free_transformer(Transformer* t) {
+  // Free quantized tensors
     free(t->weights.q_tokens);
     free(t->weights.token_embedding_table);
     free(t->weights.wq);
@@ -839,10 +833,6 @@ void encode(Tokenizer* t, char *text, int8_t bos, int8_t eos, int *tokens, int *
 // The Sampler, which takes logits and returns a sampled token
 // sampling can be done in a few ways: greedy argmax, sampling, top-p sampling
 
-// ----------------------------------------------------------------------------
-// The Sampler, which takes logits and returns a sampled token
-// sampling can be done in a few ways: greedy argmax, sampling, top-p sampling
-
 typedef struct {
     float prob;
     int index;
@@ -1003,7 +993,7 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
     encode(tokenizer, prompt, 1, 0, prompt_tokens, &num_prompt_tokens);
     if (num_prompt_tokens < 1) {
         printf("STDERR: something is wrong, expected at least 1 prompt token\r\n");
-        exit(EXIT_FAILURE);
+        // exit(EXIT_FAILURE);
     }
 
     // start the main loop
@@ -1032,22 +1022,23 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
         // print the token as string, decode it with the Tokenizer object
         char* piece = decode(tokenizer, token, next);
         safe_printf(piece); // same as printf("%s", piece), but skips "unsafe" bytes
-        // fflush(stdout);
+        fflush(stdout);
         token = next;
 
         // init the timer here because the first iteration can be slower
-        if (start == 0) { start = CLINT->MTIME; }
+        if (start == 0) { start = time_in_ms(); }
     }
-    printf("\r\n");
+    printf("\n");
 
     // report achieved tok/s (pos-1 because the timer starts after first iteration)
     if (pos > 1) {
-        long end = CLINT->MTIME;
+        long end = time_in_ms();
         printf("STDERR: achieved tok/s: %f\r\n", (pos-1) / (double)(end-start)*1000);
     }
 
     free(prompt_tokens);
 }
+
 
 void read_stdin(const char* guide, char* buffer, size_t bufsize) {
   // read a line from stdin, up to but not including \n
@@ -1190,7 +1181,7 @@ void app_main() {
   int steps = 512;            // number of steps to run for
   char *prompt = NULL;        // prompt string (I have it set up to ask screen if not given)
   unsigned long long rng_seed = CLINT->MTIME; // seed rng with time by default
-  GenMode mode = GENERATE;    // generate|chat
+  GenMode mode = CHAT;    // generate|chat
   char *system_prompt = NULL; // the (optional) system prompt to use in chat mode (I have it set up to ask screen if not given)
 
   // Parameter validation and overrides
@@ -1221,7 +1212,7 @@ void app_main() {
     if (mode == GENERATE) {
         generate(&transformer, &tokenizer, &sampler, prompt, steps);
     } else {
-        chat(&transformer, &tokenizer, &sampler, NULL, prompt, steps);
+        chat(&transformer, &tokenizer, &sampler, NULL, NULL, steps);
     }
 
     printf("========================================\r\n");
