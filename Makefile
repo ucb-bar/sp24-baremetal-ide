@@ -47,7 +47,7 @@ endif
 
 .PHONY: gdb
 gdb:
-	$(DG) $(DEBUGGER_ARGS) --eval-command="target extended-remote localhost:3333" --eval-command="monitor reset"
+	$(DG) $(DEBUGGER_ARGS) --eval-command="target extended-remote localhost:3335" --eval-command="monitor reset"
 
 .PHONY: clean
 clean:

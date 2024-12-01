@@ -34,8 +34,13 @@ extern "C" {
 #include <string.h>
 #include "hardware.h"
 
-#include "weights.h"
-#include "tokenizer.h"
+// 15M version
+// #include "weights_15Mq.h"
+// #include "tokenizer_TS.h"
+
+// 260K version
+#include "weights_260Kq_fp16.h"
+#include "tokenizer_512.h"
 
 
 /**
@@ -56,6 +61,7 @@ extern "C" {
 #define MODEL_MAGIC_NUMBER 0x616b3432
 #define MODEL_VERSION_INT8 2
 #define MODEL_V2_HEADER_SIZE 256
+
 /* USER CODE END Private defines */
 
 /* Exported types ------------------------------------------------------------*/

@@ -61,6 +61,10 @@ const unsigned char *ASCII_BEL = (const unsigned char *) "\a";
 
 int32_t GS = 0; // group size global for quantization of the weights
 
+#ifdef ENABLE_QT_DOTPROD
+int32_t GS_QTDP_BOUND = 0; // Quantized transformer dot product chunk size
+#endif
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -341,6 +345,10 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
   cumulative_offset += sizeof(int32_t);
   printf("\tGroup Size:\t%d\r\n\r\n", GS);
 
+#ifdef ENABLE_QT_DOTPROD
+  GS_QTDP_BOUND = GS / 16 * 16;
+#endif
+
   // int shared_weights = config->vocab_size > 0 ? 1 : 0;
   config->vocab_size = abs(config->vocab_size);
   *file_size = sizeof(Config) + sizeof(WEIGHTS);
@@ -431,9 +439,26 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
 
         // do the matmul in groups of GS
         int j;
-        for (j = 0; j <= n - GS; j += GS) {
-            for (int k = 0; k < GS; k++) {
-                //dma_init_MAC(DMA1, w->q[in + j], )
+        for (j = 0; j <= n - GS; j += GS) {  // Chunks in groups of GS (was n - GS)
+            int k = 0;
+
+#ifdef ENABLE_QT_DOTPROD
+        // if (d > n) {
+            for (int k = 0; k < GS_QTDP_BOUND; k += 16) { // Dot product on vector
+                int32_t dot_out_temp;
+                printf("n = %d, d = %d, i = %d, j = %d, k = %d, upper = %d.\r\n", n, d, i, j, k, GS_QTDP_BOUND);
+                asm volatile("fence");
+                V_LOAD(1, &(x->q[j + k]));
+                V_LOAD(2, &(w->q[in + j + k]));
+                V_DOT_PROD(dot_out_temp, 1, 2);
+                asm volatile("fence");
+                ival += dot_out_temp;
+                // dma_init_MAC(DMA1, w->q[in + j], x->q[j], );
+            }
+        // }
+#endif
+
+            for (; k < GS; k++) {   // Performs single operations
                 ival += ((int32_t) x->q[j + k]) * ((int32_t) w->q[in + j + k]);
             }
             val += ((float) ival) * w->s[(in + j) / GS] * x->s[j / GS];
@@ -980,7 +1005,7 @@ int sample(Sampler* sampler, float* logits) {
 
 long time_in_ms() {
     // return time in milliseconds, for benchmarking the model speed
-    return CLINT->MTIME / MTIME_FREQ / 1000;
+    return CLINT->MTIME;
 }
 
 // ----------------------------------------------------------------------------
@@ -1246,6 +1271,10 @@ int main(int argc, char **argv) {
   UART1_init_config.mode = UART_MODE_TX_RX;
   UART1_init_config.stopbits = UART_STOPBITS_2;
   uart_init(UART1, &UART1_init_config);
+#endif
+
+#ifdef ENABLE_QT_DOTPROD
+  SET_SCALE_FACTOR(1, 0);
 #endif
   /* USER CODE END SysInit */
 
