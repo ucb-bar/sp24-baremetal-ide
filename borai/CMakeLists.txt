@@ -1,5 +1,5 @@
 ### Executables ###
-
+add_compile_options(-g)
 add_executable(borai
   fp32/src/main.c
   fp32/src/syscalls.c

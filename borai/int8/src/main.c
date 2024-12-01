@@ -425,12 +425,15 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
 
         float val = 0.0f;
         int32_t ival = 0;
+
+        // in = offset for w matrix accounting for rows
         int in = i * n;
 
         // do the matmul in groups of GS
         int j;
         for (j = 0; j <= n - GS; j += GS) {
             for (int k = 0; k < GS; k++) {
+                //dma_init_MAC(DMA1, w->q[in + j], )
                 ival += ((int32_t) x->q[j + k]) * ((int32_t) w->q[in + j + k]);
             }
             val += ((float) ival) * w->s[(in + j) / GS] * x->s[j / GS];
@@ -1181,7 +1184,7 @@ void app_main() {
   int steps = 512;            // number of steps to run for
   char *prompt = NULL;        // prompt string (I have it set up to ask screen if not given)
   unsigned long long rng_seed = CLINT->MTIME; // seed rng with time by default
-  GenMode mode = CHAT;    // generate|chat
+  GenMode mode = GENERATE;    // generate|chat
   char *system_prompt = NULL; // the (optional) system prompt to use in chat mode (I have it set up to ask screen if not given)
 
   // Parameter validation and overrides
@@ -1207,6 +1210,7 @@ void app_main() {
   while (1) {
     // Disabled for testing. Should uncomment when ready for random stuff each run
     sampler.rng_state = CLINT->MTIME;
+    printf("\t MTIME RNG State: %llu\r\n\r\n", sampler.rng_state);
 
     // run!
     if (mode == GENERATE) {
