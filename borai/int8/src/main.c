@@ -428,6 +428,8 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
     // by far the most amount of time is spent inside this little function
     // inputs to this function are both quantized
 
+    // d = num rows, n = num cols
+
     int i;
     for (i = 0; i < d; i++) {
 
@@ -1003,9 +1005,11 @@ int sample(Sampler* sampler, float* logits) {
 // ----------------------------------------------------------------------------
 // utilities: time
 
+#define CURRENT_TIME_IN_SECONDS (READ_CSR("mcycle") / MTIME_FREQ)
+
 long time_in_ms() {
     // return time in milliseconds, for benchmarking the model speed
-    return CLINT->MTIME;
+    return (READ_CSR("mcycle") / MTIME_FREQ);
 }
 
 // ----------------------------------------------------------------------------
@@ -1025,7 +1029,7 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
     }
 
     // start the main loop
-    long start = 0;  // used to time our code, only initialized after first iteration
+    unsigned long start = 0;  // used to time our code, only initialized after first iteration
     int next;        // will store the next token in the sequence
     int token = prompt_tokens[0]; // kick off with the first token in the prompt
     int pos = 0;     // position in the sequence
@@ -1054,14 +1058,21 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
         token = next;
 
         // init the timer here because the first iteration can be slower
-        if (start == 0) { start = time_in_ms(); }
+        if (start == 0) { start = READ_CSR("mcycle"); }
     }
     printf("\n");
 
     // report achieved tok/s (pos-1 because the timer starts after first iteration)
     if (pos > 1) {
-        long end = time_in_ms();
-        printf("STDERR: achieved tok/s: %f\r\n", (pos-1) / (double)(end-start)*1000);
+        unsigned long end = READ_CSR("mcycle");
+        printf("\r\nBENCHMARK: Total cycles: %lu\r\n", end-start);
+        printf("BENCHMARK: Total tokens:\t%d\r\n", pos-1);
+        printf("BENCHMARK: Cycles per token:\t%lu\r\n", (unsigned long)(end-start)/(pos-1));
+        printf("BENCHMARK: Seconds per token:\t%lu\r\n", (unsigned long)((end-start)/MTIME_FREQ)/(pos-1));
+        printf("BENCHMARK: Seconds per token (float):\t%f\r\n", ((float)(end-start)/(float)MTIME_FREQ)/(float)(pos-1));
+
+        printf("BENCHMARK: MTIME Frequency:\t%lu\r\n", MTIME_FREQ);
+        printf("STDERR: achieved tok/s:\t%lu\r\n", (pos-1) / (double)(end-start)*1000);
     }
 
     free(prompt_tokens);
@@ -1206,7 +1217,7 @@ void app_main() {
   // Parameters //
   float temperature = 0.8f;   // 0.0 = greedy deterministic. 1.0 = original. don't set higher
   float topp = 0.9f;          // top-p in nucleus sampling. 1.0 = off. 0.9 works well, but slower
-  int steps = 512;            // number of steps to run for
+  int steps = 256;            // number of steps to run for (default 512)
   char *prompt = NULL;        // prompt string (I have it set up to ask screen if not given)
   unsigned long long rng_seed = CLINT->MTIME; // seed rng with time by default
   GenMode mode = GENERATE;    // generate|chat
@@ -1245,7 +1256,7 @@ void app_main() {
     }
 
     printf("========================================\r\n");
-    msleep(1000);
+    //msleep(1000);
   }
 }
 
