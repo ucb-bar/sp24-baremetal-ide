@@ -94,10 +94,10 @@ add_link_options(-T ${LINKER_SCRIPT})
 #################################
 
 add_executable(shmoo_bench
-  shmoo_bench/sparse_accel_bench/src/main.c
+  shmoo_bench/hello/src/main.c
 )
 
-target_include_directories(shmoo_bench PUBLIC shmoo_bench/sparse_accel_bench/include)
+target_include_directories(shmoo_bench PUBLIC shmoo_bench/hello/include)
 
 
 #################################
