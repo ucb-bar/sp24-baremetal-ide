@@ -1,6 +1,7 @@
 
 add_library(mlnetworks STATIC
     src/cnn.c
+    src/conv_accel.c
 )
 
 target_include_directories(mlnetworks PUBLIC include)

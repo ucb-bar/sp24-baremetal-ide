@@ -1,283 +1,215 @@
-/*
-  mnist.c
-
-  Usage:
-  $ ./mnist train-images train-labels test-images test-labels
-*/
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include "cnn.h"
 
-/* be32toh */
-uint32_t mybe32toh(uint32_t big_endian_value) {
-    union {
-        uint32_t u32;
-        uint8_t bytes[4];
-    } u;
-    u.bytes[0] = (big_endian_value >> 24) & 0xFF;
-    u.bytes[1] = (big_endian_value >> 16) & 0xFF;
-    u.bytes[2] = (big_endian_value >> 8) & 0xFF;
-    u.bytes[3] = big_endian_value & 0xFF;
-    return u.u32;
+/* Canvas size for MNIST images */
+#define IMAGE_WIDTH 28
+#define IMAGE_HEIGHT 28
+#define IMAGE_SIZE (IMAGE_WIDTH * IMAGE_HEIGHT)
+
+/* Clear a canvas */
+void clear_canvas(uint8_t* canvas) {
+    memset(canvas, 0, IMAGE_SIZE);
 }
 
-/*  IdxFile
- */
-typedef struct _IdxFile
-{
-    int ndims;
-    uint32_t* dims;
-    uint8_t* data;
-} IdxFile;
-
-#define DEBUG_IDXFILE 0
-
-/* IdxFile_read(fp)
-   Reads all the data from given fp.
-*/
-IdxFile* IdxFile_read(FILE* fp)
-{
-    /* Read the file header. */
-    struct {
-        uint16_t magic;
-        uint8_t type;
-        uint8_t ndims;
-        /* big endian */
-    } header;
-    if (fread(&header, sizeof(header), 1, fp) != 1) return NULL;
-#if DEBUG_IDXFILE
-    fprintf(stderr, "IdxFile_read: magic=%x, type=%x, ndims=%u\n",
-            header.magic, header.type, header.ndims);
-#endif
-    if (header.magic != 0) return NULL;
-    if (header.type != 0x08) return NULL;
-    if (header.ndims < 1) return NULL;
-
-    /* Read the dimensions. */
-    IdxFile* self = (IdxFile*)calloc(1, sizeof(IdxFile));
-    if (self == NULL) return NULL;
-    self->ndims = header.ndims;
-    self->dims = (uint32_t*)calloc(self->ndims, sizeof(uint32_t));
-    if (self->dims == NULL) return NULL;
-    
-    if (fread(self->dims, sizeof(uint32_t), self->ndims, fp) == self->ndims) {
-        uint32_t nbytes = sizeof(uint8_t);
-        for (int i = 0; i < self->ndims; i++) {
-            /* Fix the byte order. */
-            uint32_t size = mybe32toh(self->dims[i]);
-#if DEBUG_IDXFILE
-            fprintf(stderr, "IdxFile_read: size[%d]=%u\n", i, size);
-#endif
-            nbytes *= size;
-            self->dims[i] = size;
-        }
-        /* Read the data. */
-        self->data = (uint8_t*) malloc(nbytes);
-        if (self->data != NULL) {
-            fread(self->data, sizeof(uint8_t), nbytes, fp);
-#if DEBUG_IDXFILE
-            fprintf(stderr, "IdxFile_read: read: %lu bytes\n", n);
-#endif
+/* Draw a digit '0' on the canvas */
+void draw_0(uint8_t* canvas) {
+    for (int y = 8; y <= 20; y++) {
+        for (int x = 8; x <= 20; x++) {
+            if ((x == 8 || x == 20) && (y >= 8 && y <= 20)) {
+                canvas[y * IMAGE_WIDTH + x] = 255;  // Vertical lines
+            }
+            if ((y == 8 || y == 20) && (x > 8 && x < 20)) {
+                canvas[y * IMAGE_WIDTH + x] = 255;  // Horizontal lines
+            }
         }
     }
-
-    return self;
 }
 
-/* IdxFile_destroy(self)
-   Release the memory.
-*/
-void IdxFile_destroy(IdxFile* self)
-{
-    assert (self != NULL);
-    if (self->dims != NULL) {
-        free(self->dims);
-        self->dims = NULL;
+/* Draw a digit '1' on the canvas */
+void draw_1(uint8_t* canvas) {
+    for (int y = 8; y <= 20; y++) {
+        canvas[y * IMAGE_WIDTH + 14] = 255;  // Vertical line
     }
-    if (self->data != NULL) {
-        free(self->data);
-        self->data = NULL;
+}
+
+/* Draw a digit '2' on the canvas */
+void draw_2(uint8_t* canvas) {
+    for (int x = 8; x <= 20; x++) {
+        canvas[8 * IMAGE_WIDTH + x] = 255;  // Top line
+        canvas[14 * IMAGE_WIDTH + x] = 255; // Middle line
+        canvas[20 * IMAGE_WIDTH + x] = 255; // Bottom line
     }
-    free(self);
+    for (int y = 8; y <= 14; y++) {
+        canvas[y * IMAGE_WIDTH + 20] = 255;  // Top right vertical
+    }
+    for (int y = 14; y <= 20; y++) {
+        canvas[y * IMAGE_WIDTH + 8] = 255;  // Bottom left vertical
+    }
 }
 
-/* IdxFile_get1(self, i)
-   Get the i-th record of the Idx1 file. (uint8_t)
- */
-uint8_t IdxFile_get1(IdxFile* self, int i)
-{
-    assert (self != NULL);
-    assert (self->ndims == 1);
-    assert (i < self->dims[0]);
-    return self->data[i];
+/* Draw additional digits... */
+/* For brevity, similar methods would be added for digits '3' to '9'. */
+
+/* Draw a digit on the canvas based on its label */
+void draw_digit(uint8_t* canvas, uint8_t digit) {
+    clear_canvas(canvas);
+    switch (digit) {
+        case 0: draw_0(canvas); break;
+        case 1: draw_1(canvas); break;
+        case 2: draw_2(canvas); break;
+        /* Add calls to `draw_3`, ..., `draw_9` */
+        default: clear_canvas(canvas); break;  // Clear if invalid digit
+    }
 }
 
-/* IdxFile_get3(self, i, out)
-   Get the i-th record of the Idx3 file. (matrix of uint8_t)
- */
-void IdxFile_get3(IdxFile* self, int i, uint8_t* out)
-{
-    assert (self != NULL);
-    assert (self->ndims == 3);
-    assert (i < self->dims[0]);
-    size_t n = self->dims[1] * self->dims[2];
-    memcpy(out, &self->data[i*n], n);
+/* Generate valid synthetic MNIST-like data */
+void generate_valid_synthetic_data(uint8_t* images, uint8_t* labels, int n_samples) {
+    for (int i = 0; i < n_samples; i++) {
+        uint8_t digit = rand() % 3;  // Random digit 0-9
+        uint8_t* canvas = &images[i * IMAGE_SIZE];
+        draw_digit(canvas, digit);
+        labels[i] = digit;
+    }
+}
+
+/* Display a single image (for debugging) */
+void print_image(uint8_t* image) {
+    for (int y = 0; y < IMAGE_HEIGHT; y++) {
+        for (int x = 0; x < IMAGE_WIDTH; x++) {
+            printf("%c", image[y * IMAGE_WIDTH + x] > 128 ? '#' : '.');
+        }
+        printf("\n");
+    }
 }
 
 
-/* main */
-int main(int argc, char* argv[])
-{
-    /* argv[1] = train images */
-    /* argv[2] = train labels */
-    /* argv[3] = test images */
-    /* argv[4] = test labels */
-    if (argc < 4) return 100;
+/* Main */
+int main(int argc, char* argv[]) {
+    // srand(time(NULL));  // Initialize random seed
 
-    /* Use a fixed random seed for debugging. */
-    srand(0);
-    /* Initialize layers. */
-    /* Input layer - 1x28x28. */
+    /* Network configuration */
+    int n_train_samples = 5000;
+    int n_test_samples = 5;
+    int image_size = 28 * 28;
+
+    /* Allocate memory for synthetic data */
+    printf("Memory allocation starting\n");
+    uint8_t* train_images = (uint8_t*)malloc(n_train_samples * image_size);
+    uint8_t* train_labels = (uint8_t*)malloc(n_train_samples);
+    uint8_t* test_images = (uint8_t*)malloc(n_test_samples * image_size);
+    uint8_t* test_labels = (uint8_t*)malloc(n_test_samples);
+    printf("Memory allocation ending\n");
+
+    if (!train_images || !train_labels || !test_images || !test_labels) {
+        printf("Memory allocation failed\n");
+        return 1;
+    }
+
+
+    /* Generate synthetic training and testing data */
+    generate_valid_synthetic_data(train_images, train_labels, n_train_samples);
+    generate_valid_synthetic_data(test_images, test_labels, n_test_samples);
+
+    /* Display one sample image and its label (debugging) */
+    printf("Sample image (label = %d):\n", train_labels[0]);
+    print_image(&train_images[0]);
+
+    /* Initialize layers */
+
+    printf("Initializing layers\n");
     Layer* linput = Layer_create_input(1, 28, 28);
-    /* Conv1 layer - 16x14x14, 3x3 conv, padding=1, stride=2. */
-    /* (14-1)*2+3 < 28+1*2 */
+    printf("Initialized linput\n");
     Layer* lconv1 = Layer_create_conv(linput, 16, 14, 14, 3, 1, 2, 0.1);
-    /* Conv2 layer - 32x7x7, 3x3 conv, padding=1, stride=2. */
-    /* (7-1)*2+3 < 14+1*2 */
+    printf("Initialized lconv1\n");
     Layer* lconv2 = Layer_create_conv(lconv1, 32, 7, 7, 3, 1, 2, 0.1);
-    /* FC1 layer - 200 nodes. */
+    printf("Initialized lconv2\n");
     Layer* lfull1 = Layer_create_full(lconv2, 200, 0.1);
-    /* FC2 layer - 200 nodes. */
+    printf("Initialized lfull1\n");
     Layer* lfull2 = Layer_create_full(lfull1, 200, 0.1);
-    /* Output layer - 10 nodes. */
+    printf("Initialized lfull2\n");
     Layer* loutput = Layer_create_full(lfull2, 10, 0.1);
+    printf("Initialized loutput\n");
 
-    /* Read the training images & labels. */
-    IdxFile* images_train = NULL;
-    {
-        FILE* fp = fopen(argv[1], "rb");
-        if (fp == NULL) return 111;
-        images_train = IdxFile_read(fp);
-        if (images_train == NULL) return 111;
-        fclose(fp);
-    }
-    IdxFile* labels_train = NULL;
-    {
-        FILE* fp = fopen(argv[2], "rb");
-        if (fp == NULL) return 111;
-        labels_train = IdxFile_read(fp);
-        if (labels_train == NULL) return 111;
-        fclose(fp);
-    }
+    /* Training */
+    printf("training...\n");
 
-    fprintf(stderr, "training...\n");
     double rate = 0.1;
     double etotal = 0;
     int nepoch = 10;
     int batch_size = 32;
-    int train_size = images_train->dims[0];
-    for (int i = 0; i < nepoch * train_size; i++) {
-        /* Pick a random sample from the training data */
-        uint8_t img[28*28];
-        double x[28*28];
-        double y[10];
-        int index = rand() % train_size;
-        IdxFile_get3(images_train, index, img);
-        for (int j = 0; j < 28*28; j++) {
-            x[j] = img[j]/255.0;
+
+    printf("Training for %d steps\n", nepoch * n_train_samples);
+    for (int i = 0; i < nepoch * n_train_samples; i++) {
+        /* Pick a random sample */
+        int index = rand() % n_train_samples;
+
+        // printf("Picking index %d\n", index);
+        uint8_t* img = &train_images[index * image_size];
+        uint8_t label = train_labels[index];
+
+        double x[28 * 28], y[10];
+        for (int j = 0; j < image_size; j++) {
+            x[j] = img[j] / 255.0;
         }
+
         Layer_setInputs(linput, x);
         Layer_getOutputs(loutput, y);
-        int label = IdxFile_get1(labels_train, index);
-#if 0
-        fprintf(stderr, "label=%u, y=[", label);
+
         for (int j = 0; j < 10; j++) {
-            fprintf(stderr, " %.3f", y[j]);
+            y[j] = (j == label) ? 1 : 0;
         }
-        fprintf(stderr, "]\n");
-#endif
-        for (int j = 0; j < 10; j++) {
-            y[j] = (j == label)? 1 : 0;
-        }
+
         Layer_learnOutputs(loutput, y);
+
         etotal += Layer_getErrorTotal(loutput);
+
         if ((i % batch_size) == 0) {
-            /* Minibatch: update the network for every n samples. */
-            Layer_update(loutput, rate/batch_size);
+            Layer_update(loutput, rate / batch_size);
         }
-        if ((i % 1000) == 0) {
-            fprintf(stderr, "i=%d, error=%.4f\n", i, etotal/1000);
+        if ((i % 10) == 0) {
+            printf("i=%d, error=%.4f\n", i, etotal);
             etotal = 0;
         }
     }
 
-    IdxFile_destroy(images_train);
-    IdxFile_destroy(labels_train);
-
-    /* Training finished. */
-
-    //Layer_dump(linput, stdout);
-    //Layer_dump(lconv1, stdout);
-    //Layer_dump(lconv2, stdout);
-    //Layer_dump(lfull1, stdout);
-    //Layer_dump(lfull2, stdout);
-    //Layer_dump(loutput, stdout);
-
-    /* Read the test images & labels. */
-    
-    IdxFile* images_test = NULL;
-    {
-        FILE* fp = fopen(argv[3], "rb");
-        if (fp == NULL) return 111;
-        images_test = IdxFile_read(fp);
-        if (images_test == NULL) return 111;
-        fclose(fp);
-    }
-    IdxFile* labels_test = NULL;
-    {
-        FILE* fp = fopen(argv[4], "rb");
-        if (fp == NULL) return 111;
-        labels_test = IdxFile_read(fp);
-        if (labels_test == NULL) return 111;
-        fclose(fp);
-    }
-
-    fprintf(stderr, "testing...\n");
-    int ntests = images_test->dims[0];
+    /* Testing */
+    printf("testing...\n");
     int ncorrect = 0;
-    for (int i = 0; i < ntests; i++) {
-        uint8_t img[28*28];
-        double x[28*28];
-        double y[10];
-        IdxFile_get3(images_test, i, img);
-        for (int j = 0; j < 28*28; j++) {
-            x[j] = img[j]/255.0;
+    for (int i = 0; i < n_test_samples; i++) {
+        uint8_t* img = &test_images[i * image_size];
+        uint8_t label = test_labels[i];
+
+        double x[28 * 28], y[10];
+        for (int j = 0; j < image_size; j++) {
+            x[j] = img[j] / 255.0;
         }
+
         Layer_setInputs(linput, x);
         Layer_getOutputs(loutput, y);
-        int label = IdxFile_get1(labels_test, i);
-        /* Pick the most probable label. */
-        int mj = -1;
-        for (int j = 0; j < 10; j++) {
-            if (mj < 0 || y[mj] < y[j]) {
-                mj = j;
+
+        int predicted_label = 0;
+        for (int j = 1; j < 10; j++) {
+            if (y[j] > y[predicted_label]) {
+                predicted_label = j;
             }
         }
-        if (mj == label) {
+        if (predicted_label == label) {
             ncorrect++;
         }
-        if ((i % 1000) == 0) {
-            fprintf(stderr, "i=%d\n", i);
-        }
     }
-    fprintf(stderr, "ntests=%d, ncorrect=%d\n", ntests, ncorrect);
+    printf("ntests=%d, ncorrect=%d, accuracy=%.2f%%\n",
+            n_test_samples, ncorrect, (ncorrect * 100.0) / n_test_samples);
 
-    IdxFile_destroy(images_test);
-    IdxFile_destroy(labels_test);
+    /* Clean up */
+    free(train_images);
+    free(train_labels);
+    free(test_images);
+    free(test_labels);
 
     Layer_destroy(linput);
     Layer_destroy(lconv1);

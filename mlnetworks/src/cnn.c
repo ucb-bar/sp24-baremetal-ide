@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include "cnn.h"
+#include "conv_accel.h"
+#define MAX_TEMP_BUFFER_SIZE 1024
 
 #define DEBUG_LAYER 0
 
@@ -300,69 +302,161 @@ static void Layer_feedBack_full(Layer* self)
 #endif
 }
 
-/* Layer_feedForw_conv(self)
-   Performs feed forward updates.
-*/
+
+int16_t temp_output[MAX_TEMP_BUFFER_SIZE]; // Adjust size as needed
 static void Layer_feedForw_conv(Layer* self)
 {
+    // printf("In conv\n");
     assert (self->ltype == LAYER_CONV);
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
 
     int kernsize = self->conv.kernsize;
-    int i = 0;
+    int stride = self->conv.stride;
+    int padding = self->conv.padding;
+
+    int output_width = self->width;
+    int output_height = self->height;
+    int input_width = lprev->width;
+    int input_height = lprev->height;
+    int input_depth = lprev->depth;
+    // printf("Past vars\n");
+
+    // Ensure the temp_buffer is preallocated and large enough
+    assert(output_width * output_height <= 1024); // Ensure the buffer size is reasonable
+
+    // printf("Here\n");
+    if (!temp_output) {
+        // printf("Memory allocation failed for temp_output\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Perform convolution for each output depth (z1)
     for (int z1 = 0; z1 < self->depth; z1++) {
-        /* z1: dst matrix */
-        /* qbase: kernel matrix base index */
-        int qbase = z1 * lprev->depth * kernsize * kernsize;
-        for (int y1 = 0; y1 < self->height; y1++) {
-            int y0 = self->conv.stride * y1 - self->conv.padding;
-            for (int x1 = 0; x1 < self->width; x1++) {
-                int x0 = self->conv.stride * x1 - self->conv.padding;
-                /* Compute the kernel at (x1,y1) */
-                /* (x0,y0): src pixel */
-                double v = self->biases[z1];
-                for (int z0 = 0; z0 < lprev->depth; z0++) {
-                    /* z0: src matrix */
-                    /* pbase: src matrix base index */
-                    int pbase = z0 * lprev->width * lprev->height;
-                    for (int dy = 0; dy < kernsize; dy++) {
-                        int y = y0+dy;
-                        if (0 <= y && y < lprev->height) {
-                            int p = pbase + y*lprev->width;
-                            int q = qbase + dy*kernsize;
-                            for (int dx = 0; dx < kernsize; dx++) {
-                                int x = x0+dx;
-                                if (0 <= x && x < lprev->width) {
-                                    v += lprev->outputs[p+x] * self->weights[q+dx];
-                                }
-                            }
-                        }
-                    }
-                }
-                /* Apply the activation function. */
-                v = relu(v);
+        int qbase = z1 * input_depth * kernsize * kernsize;
+
+        // Clear the temporary buffer for this output depth
+        for (int i = 0; i < output_width * output_height; i++) {
+            temp_output[i] = 0;
+        }
+
+        for (int z0 = 0; z0 < input_depth; z0++) {
+            int pbase = z0 * input_width * input_height;
+
+            // printf("Conv %d %d\n", z1, z0);
+            // Pointer to the kernel for the current z1 and z0
+            int8_t* kernel = &self->weights[qbase + z0 * kernsize * kernsize];
+
+            // Call convolution2d for this depth
+            convolution2d(
+                &lprev->outputs[pbase],  // Source input for the current depth
+                temp_output,             // Temporary output buffer
+                input_width,             // Input width
+                input_height,            // Input height
+                kernel                   // Kernel
+            );
+        }
+
+        // Add bias, apply activation, and store results in the output and gradient arrays
+        // printf("Biasing\n");
+        for (int y1 = 0; y1 < output_height; y1++) {
+            for (int x1 = 0; x1 < output_width; x1++) {
+                // printf("Biasing %d %d\n", y1, x1);
+                int i = y1 * output_width + x1; // Output index
+                double v = temp_output[i] + self->biases[z1]; // Add bias
+                v = relu(v); // Apply activation
                 self->outputs[i] = v;
-                self->gradients[i] = relu_g(v);
-                i++;
+                self->gradients[i] = relu_g(v); // Store gradient
             }
         }
+        // printf("Done Biasing \n");
     }
-    assert (i == self->nnodes);
+
+    // printf("Done Temp free\n");
+    // free(temp_output);
+    // printf("Done Free \n");
+
+    assert (self->nnodes == self->width * self->height * self->depth);
 
 #if DEBUG_LAYER
-    fprintf(stderr, "Layer_feedForw_conv(Layer%d):\n", self->lid);
-    fprintf(stderr, "  outputs = [");
+    printf("Layer_feedForw_conv(Layer%d):\n", self->lid);
+    printf("  outputs = [");
     for (int i = 0; i < self->nnodes; i++) {
-        fprintf(stderr, " %.4f", self->outputs[i]);
+        printf(" %.4f", self->outputs[i]);
     }
-    fprintf(stderr, "]\n  gradients = [");
+    printf("]\n  gradients = [");
     for (int i = 0; i < self->nnodes; i++) {
-        fprintf(stderr, " %.4f", self->gradients[i]);
+        printf(" %.4f", self->gradients[i]);
     }
-    fprintf(stderr, "]\n");
+    printf("]\n");
 #endif
+    // printf("Done methods \n");
 }
+
+
+/* Layer_feedForw_conv(self)
+   Performs feed forward updates.
+*/
+// static void Layer_feedForw_conv(Layer* self)
+// {
+//     assert (self->ltype == LAYER_CONV);
+//     assert (self->lprev != NULL);
+//     Layer* lprev = self->lprev;
+
+//     int kernsize = self->conv.kernsize;
+//     int i = 0;
+//     for (int z1 = 0; z1 < self->depth; z1++) {
+//         /* z1: dst matrix */
+//         /* qbase: kernel matrix base index */
+//         int qbase = z1 * lprev->depth * kernsize * kernsize;
+//         for (int y1 = 0; y1 < self->height; y1++) {
+//             int y0 = self->conv.stride * y1 - self->conv.padding;
+//             for (int x1 = 0; x1 < self->width; x1++) {
+//                 int x0 = self->conv.stride * x1 - self->conv.padding;
+//                 /* Compute the kernel at (x1,y1) */
+//                 /* (x0,y0): src pixel */
+//                 double v = self->biases[z1];
+//                 for (int z0 = 0; z0 < lprev->depth; z0++) {
+//                     /* z0: src matrix */
+//                     /* pbase: src matrix base index */
+//                     int pbase = z0 * lprev->width * lprev->height;
+//                     for (int dy = 0; dy < kernsize; dy++) {
+//                         int y = y0+dy;
+//                         if (0 <= y && y < lprev->height) {
+//                             int p = pbase + y*lprev->width;
+//                             int q = qbase + dy*kernsize;
+//                             for (int dx = 0; dx < kernsize; dx++) {
+//                                 int x = x0+dx;
+//                                 if (0 <= x && x < lprev->width) {
+//                                     v += lprev->outputs[p+x] * self->weights[q+dx];
+//                                 }
+//                             }
+//                         }
+//                     }
+//                 }
+//                 /* Apply the activation function. */
+//                 v = relu(v);
+//                 self->outputs[i] = v;
+//                 self->gradients[i] = relu_g(v);
+//                 i++;
+//             }
+//         }
+//     }
+//     assert (i == self->nnodes);
+
+// #if DEBUG_LAYER
+//     fprintf(stderr, "Layer_feedForw_conv(Layer%d):\n", self->lid);
+//     fprintf(stderr, "  outputs = [");
+//     for (int i = 0; i < self->nnodes; i++) {
+//         fprintf(stderr, " %.4f", self->outputs[i]);
+//     }
+//     fprintf(stderr, "]\n  gradients = [");
+//     for (int i = 0; i < self->nnodes; i++) {
+//         fprintf(stderr, " %.4f", self->gradients[i]);
+//     }
+//     fprintf(stderr, "]\n");
+// #endif
+// }
 
 static void Layer_feedBack_conv(Layer* self)
 {
@@ -487,6 +581,7 @@ double Layer_getErrorTotal(const Layer* self)
     double total = 0;
     for (int i = 0; i < self->nnodes; i++) {
         double e = self->errors[i];
+        // printf("error = %f\n", e);
         total += e*e;
     }
     return (total / self->nnodes);
@@ -501,6 +596,7 @@ void Layer_learnOutputs(Layer* self, const double* values)
     assert (self->ltype != LAYER_INPUT);
     assert (self->lprev != NULL);
     for (int i = 0; i < self->nnodes; i++) {
+        // printf("Learning: %f %f\n", self->outputs[i], values[i]);
         self->errors[i] = (self->outputs[i] - values[i]);
     }
 
@@ -589,9 +685,11 @@ Layer* Layer_create_conv(
     assert ((width-1) * stride + kernsize <= lprev->width + padding*2);
     assert ((height-1) * stride + kernsize <= lprev->height + padding*2);
 
+    printf("Stop1\n");
     Layer* self = Layer_create(
         lprev, LAYER_CONV, depth, width, height,
         depth, depth * lprev->depth * kernsize * kernsize);
+    printf("Stop2\n");
     assert (self != NULL);
 
     self->conv.kernsize = kernsize;
