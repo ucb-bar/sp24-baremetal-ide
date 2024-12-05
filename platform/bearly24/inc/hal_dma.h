@@ -19,10 +19,10 @@ extern "C" {
 #include "metal.h"
 #include "ll_dma.h"
 
-#define DMA0                    ((volatile DMA_Type*) 0x8800000)
-#define DMA1                    ((volatile DMA_Type*) 0x8802000)
-#define DMA2                    ((volatile DMA_Type*) 0x8804000)
-#define DMA3                    ((volatile DMA_Type*) 0x8808000)
+#define DMA0                    ((DMA_Type*) 0x8800000)
+#define DMA1                    ((DMA_Type*) 0x8802000)
+#define DMA2                    ((DMA_Type*) 0x8804000)
+#define DMA3                    ((DMA_Type*) 0x8808000)
 
 typedef enum {
   MODE_COPY = 0x0,
@@ -37,6 +37,8 @@ typedef enum {
   DMA_CORRUPTR,
   DMA_DENYW
 } DMA_Status;
+
+DMA_Status get_status(DMA_Type* DMAX);
 
 /* Returns whether the given DMA engine's last operation was completed successfully */
 static inline uint8_t dma_operation_complete(DMA_Type* DMAX) {
