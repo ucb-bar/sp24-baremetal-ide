@@ -65,6 +65,11 @@ int32_t GS = 0; // group size global for quantization of the weights
 int32_t GS_QTDP_BOUND = 0; // Quantized transformer dot product chunk size
 #endif
 
+// #ifdef ENABLE_DMA_MATVEC
+// int32_t GS_MATVEC_BOUND = 0;
+
+// #endif
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -343,10 +348,22 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
   int32_t group_size = *((int32_t*)(WEIGHTS + cumulative_offset));
   GS = group_size;
   cumulative_offset += sizeof(int32_t);
-  printf("\tGroup Size:\t%d\r\n\r\n", GS);
+  printf("\tGroup Size:\t%d\r\n", GS);
 
+  printf("Accelerator Status:\r\n");
+  printf("\tDMA MatVec Accel:\t");
+#ifdef ENABLE_DMA_MATVEC
+  printf("Enabled\r\n");
+#else
+  printf("Disabled\r\n");
+#endif
+
+  printf("\tQTrans DotProd:\t");
 #ifdef ENABLE_QT_DOTPROD
   GS_QTDP_BOUND = GS / 16 * 16;
+  printf("Enabled\r\n");
+#else
+  printf("Disabled\r\n");
 #endif
 
   // int shared_weights = config->vocab_size > 0 ? 1 : 0;
@@ -423,15 +440,119 @@ void softmax(float* x, int size) {
     }
 }
 
+#ifdef ENABLE_DMA_MATVEC
+DMA_Status dma_get_MAC_result_as_int32(DMA_Type* DMAX, int32_t* dst, uint32_t count) {
+  while (dma_operation_inprogress_and_not_error(DMAX));
+  if (count > 32)
+    count = 32;
+  
+  if (dma_operation_complete(DMAX)){
+    for (size_t i = 0; i < count; i++)
+      dst[i] = (int32_t)(DMAX->DEST_REG[i]);
+    return DMA_OK;
+  }
+  else {
+    for (size_t i = 0; i < count; i++)
+        dst[i] = -1;
+    return get_status(DMAX);
+  }
+}
+#endif
+
 void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
     // W (d,n) @ x (n,) -> xout (d,)
     // by far the most amount of time is spent inside this little function
     // inputs to this function are both quantized
 
     // d = num rows, n = num cols
+    int i = 0;
 
-    int i;
-    for (i = 0; i < d; i++) {
+#define DMA_NUM_ROWS 16
+#define DMA_NUM_COLS 64
+#ifdef ENABLE_DMA_MATVEC
+    // Assumption: GS is a multiple of and equal to matvec width (64 int8s).
+    int32_t mv_row = 0;  // Top-left of DMA start point
+    int32_t mv_col;  
+    int32_t mac_out_idx;
+    // bool reset_mac_outputs = true; // Can use this to support variable GS, if need to conditionally reset mac_output.
+    int32_t stride = n * sizeof(int8_t);
+    int32_t mac_output[DMA_NUM_ROWS];
+    int32_t cmul_sum = 0;
+    DMA_Status status;
+
+    // Shift DMA down by size
+    for (; mv_row < d / DMA_NUM_ROWS * DMA_NUM_ROWS; mv_row += DMA_NUM_ROWS) {
+        // Shift DMA over based on multiples of its width and GS.
+        size_t row_offset = mv_row * n;
+
+        for (mv_col = 0; mv_col < n / DMA_NUM_COLS * DMA_NUM_COLS; mv_col += DMA_NUM_COLS) {
+            // (void*)(w->q + in + j + n) - (void*)(w->q + in + j)
+            // DMA Struct, Source Matrix, Operand Vector, Source Row Stride (bytes), Row Count
+            dma_init_MAC(DMA0, w->q[row_offset + mv_col], x->q[mv_col], stride, DMA_NUM_ROWS);
+
+            // Blocking operation!
+            status = dma_get_MAC_result_as_int32(DMA1, &mac_output, DMA_NUM_ROWS);
+            printf("Got MAC result!");
+            if (status != DMA_OK) {
+                printf("ERR: DMA returned error status code %d\r\n", status);
+            } else{
+                printf("DMA OK\r\n");
+            }
+
+            size_t xout_vec_col = mv_col / GS;
+            for (mac_out_idx = 0; mac_out_idx < DMA_NUM_ROWS; mac_out_idx++) {
+                xout[mv_row + mac_out_idx] += ((float) mac_output[mac_out_idx]) * w->s[(n * mac_out_idx + mv_col) / GS] * x->s[xout_vec_col];
+            }
+        }
+
+        /// Nested Naive/QTDP Solution for extra columns ///
+
+        if (mv_col >= GS) continue;
+        int32_t lower_col = mv_col;
+
+        for (i = mv_row; i < d; i++) {
+            float val = 0.0f;
+            int32_t ival = 0;
+
+            // in = offset for w matrix accounting for rows
+            int in = i * n;
+
+            // do the matmul in groups of GS
+            int j;
+
+            for (j = lower_col; j <= n - GS; j += GS) {  // Chunks in groups of GS (was n - GS)
+                int k = 0;
+
+// #ifdef ENABLE_QT_DOTPROD
+//                 for (; k < GS_QTDP_BOUND; k += 16) { // Dot product on vector
+//                     int32_t dot_out_temp;
+//                     printf("n = %d, d = %d, i = %d, j = %d, k = %d, upper = %d.\r\n", n, d, i, j, k, GS_QTDP_BOUND);
+//                     asm volatile("fence");
+//                     V_LOAD(1, &(x->q[j + k]));
+//                     V_LOAD(2, &(w->q[in + j + k]));
+//                     V_DOT_PROD(dot_out_temp, 1, 2);
+//                     asm volatile("fence");
+//                     ival += dot_out_temp;
+//                 }
+// #endif
+
+                for (; k < GS; k++) {   // Performs single operations
+                    ival += ((int32_t) x->q[j + k]) * ((int32_t) w->q[in + j + k]);
+                }
+                val += ((float) ival) * w->s[(in + j) / GS] * x->s[j / GS];
+                ival = 0;
+            }
+
+            xout[i] = val;
+        }
+
+    }
+
+    i = mv_row;
+#endif
+    
+    /// Naive Solution with optional QTDP, which can be used alongside DMA for extra leftover rows.
+    for (; i < d; i++) {
 
         float val = 0.0f;
         int32_t ival = 0;
@@ -441,12 +562,13 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
 
         // do the matmul in groups of GS
         int j;
+
         for (j = 0; j <= n - GS; j += GS) {  // Chunks in groups of GS (was n - GS)
             int k = 0;
 
 #ifdef ENABLE_QT_DOTPROD
         // if (d > n) {
-            for (int k = 0; k < GS_QTDP_BOUND; k += 16) { // Dot product on vector
+            for (; k < GS_QTDP_BOUND; k += 16) { // Dot product on vector
                 int32_t dot_out_temp;
                 printf("n = %d, d = %d, i = %d, j = %d, k = %d, upper = %d.\r\n", n, d, i, j, k, GS_QTDP_BOUND);
                 asm volatile("fence");
@@ -455,7 +577,6 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
                 V_DOT_PROD(dot_out_temp, 1, 2);
                 asm volatile("fence");
                 ival += dot_out_temp;
-                // dma_init_MAC(DMA1, w->q[in + j], x->q[j], );
             }
         // }
 #endif

@@ -13,8 +13,10 @@ extern "C" {
  * To save the memory space, the unused peripheral device can be commented out.
  */
 
-#define ENABLE_QT_DOTPROD
+// Hardware Enable //
 
+#define ENABLE_QT_DOTPROD
+#define ENABLE_DMA_MATVEC
 
 #include "riscv.h"
 #include "hal_dma.h"
