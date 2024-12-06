@@ -14,9 +14,9 @@ This will produce an ELF binary file at `./build/borai/borai.elf`. A JTAG interf
 make ocd CHIP=bearly24
 ```
 
-This command will automatically start an OpenOCD server with the proper BearlyML'24 chip configuration. We can then initialize a GDB interface with a server connection using
+This command will automatically start an [OpenOCD](https://openocd.org/) server with the proper BearlyML'24 chip configuration. Hart IDs 0-3 will be mapped to ports 3333-3336 on your machine. We can then initialize a GDB interface with a server connection to Hart 2 using
 ```
-make gdb ./build/borai/borai.elf
+make gdb BINARY=./build/borai/borai.elf PORT=3335
 ```
 
 Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
@@ -33,10 +33,11 @@ This will produce an ELF binary file at `./build/borai/boraiq.elf`. A JTAG inter
 make ocd CHIP=bearly24
 ```
 
-This command will automatically start an OpenOCD server with the proper BearlyML'24 chip configuration. We can then initialize a GDB interface with a server connection using
+This command will automatically start an [OpenOCD](https://openocd.org/) server with the proper BearlyML'24 chip configuration. Hart IDs 0-3 will be mapped to ports 3333-3336 on your machine. We can then initialize a GDB interface with a server connection to Hart 2 using
 ```
-make gdb ./build/borai/boraiq.elf
+make gdb BINARY=./build/borai/boraiq.elf PORT=3335
 ```
+
 
 Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
 
