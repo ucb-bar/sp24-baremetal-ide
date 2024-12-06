@@ -34,12 +34,24 @@ make ocd CHIP=bearly24
 ```
 
 This command will automatically start an [OpenOCD](https://openocd.org/) server with the proper BearlyML'24 chip configuration. Hart IDs 0-3 will be mapped to ports 3333-3336 on your machine. We can then initialize a GDB interface with a server connection to Hart 2 using
-```
+```bash
 make gdb BINARY=./build/borai/boraiq.elf PORT=3335
 ```
 
 
 Upon running `load` in GDB, the binary will be loaded to the chip and ready for testing.
+
+### Int8 Accelerators
+
+The two primarily supported accelerators for BorAI are the Quantized Transformer's `V_DOTPROD` function, as well as the BearlyML'24 DMA MAC function. BorAI has been written such that these can both be enabled or disabled using `#define` directives within `hardware.h`.
+
+```c
+// Hardware Enable //
+#define ENABLE_QT_DOTPROD
+#define ENABLE_DMA_MATVEC
+```
+
+Removing either or both of these lines will remove all code pertaining to that accelerator, falling back to a naive C implementation where possible. This is particularly useful for scoped debugging or for limiting the program's text size.
 
 ## Converting Binary Files to Headers
 
