@@ -40,7 +40,7 @@ extern "C" {
 // #include "tokenizer_TS.h"
 
 // 260K version
-// #include "weights_260Kq_fp16.h"
+// #include "weights_260Kq.h"
 // #include "tokenizer_512.h"
 
 // newer tok32000 stories260 version

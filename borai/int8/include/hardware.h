@@ -15,7 +15,7 @@ extern "C" {
 
 // Hardware Enable //
 
-#define ENABLE_QT_DOTPROD
+// #define ENABLE_QT_DOTPROD
 #define ENABLE_DMA_MATVEC
 
 #include "riscv.h"

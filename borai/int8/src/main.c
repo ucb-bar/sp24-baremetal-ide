@@ -306,7 +306,7 @@ void memory_map_weights(TransformerWeights *w, Config* p, void* ptr, uint8_t sha
 //     memory_map_weights(weights, config, weights_ptr, shared_weights);
 // }
 
-void read_checkpoint_from_header(Config* config, TransformerWeights* weights, float** data, ssize_t* file_size) {
+void read_checkpoint_from_header(Config* config, TransformerWeights* weights, float** data, size_t* file_size) {
   size_t cumulative_offset = 0;
   printf("Loading checkpoint data...\r\n");
   // Check magic number
@@ -351,7 +351,7 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
   printf("\tGroup Size:\t%d\r\n", GS);
 
   printf("Accelerator Status:\r\n");
-  printf("\tDMA MatVec Accel:\t");
+  printf("\tDMA MatVec:\t");
 #ifdef ENABLE_DMA_MATVEC
   printf("Enabled\r\n");
 #else
@@ -457,6 +457,19 @@ DMA_Status dma_get_MAC_result_as_int32(DMA_Type* DMAX, int32_t* dst, uint32_t co
     return get_status(DMAX);
   }
 }
+
+void dma_init_MAC_local(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_stride, uint32_t count) {
+  while (dma_operation_inprogress_and_not_error(DMAX));
+
+  uint64_t* op = (uint64_t*) operand;
+  for (size_t i = 0; i < 8; i++)
+    DMAX->OPERAND_REG[i] = op[i];
+  DMAX->SRC_ADDR = (uint64_t) src;
+  DMAX->SRCSTRIDE = src_stride;
+  DMAX->MODE = MODE_MAC;
+  DMAX->COUNT = count;
+
+}
 #endif
 
 void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
@@ -488,15 +501,15 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
         for (mv_col = 0; mv_col < n / DMA_NUM_COLS * DMA_NUM_COLS; mv_col += DMA_NUM_COLS) {
             // (void*)(w->q + in + j + n) - (void*)(w->q + in + j)
             // DMA Struct, Source Matrix, Operand Vector, Source Row Stride (bytes), Row Count
-            dma_init_MAC(DMA0, w->q[row_offset + mv_col], x->q[mv_col], stride, DMA_NUM_ROWS);
+            dma_init_MAC_local(DMA0, &w->q[row_offset + mv_col], &x->q[mv_col], stride, DMA_NUM_ROWS);
 
             // Blocking operation!
-            status = dma_get_MAC_result_as_int32(DMA1, &mac_output, DMA_NUM_ROWS);
-            printf("Got MAC result!");
+            status = dma_get_MAC_result_as_int32(DMA0, &mac_output, DMA_NUM_ROWS);
+            //printf("Got MAC result!");
             if (status != DMA_OK) {
                 printf("ERR: DMA returned error status code %d\r\n", status);
             } else{
-                printf("DMA OK\r\n");
+            //    printf("DMA OK\r\n");
             }
 
             size_t xout_vec_col = mv_col / GS;
@@ -1367,7 +1380,7 @@ void app_main() {
   while (1) {
     // Disabled for testing. Should uncomment when ready for random stuff each run
     sampler.rng_state = CLINT->MTIME;
-    printf("\t MTIME RNG State: %llu\r\n\r\n", sampler.rng_state);
+    printf("\r\nMTIME RNG State: %llu\r\n\r\n", sampler.rng_state);
 
     // run!
     if (mode == GENERATE) {
