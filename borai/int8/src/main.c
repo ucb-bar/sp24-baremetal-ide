@@ -442,32 +442,73 @@ void softmax(float* x, int size) {
 
 #ifdef ENABLE_DMA_MATVEC
 DMA_Status dma_get_MAC_result_as_int32(DMA_Type* DMAX, int32_t* dst, uint32_t count) {
-  while (dma_operation_inprogress_and_not_error(DMAX));
-  if (count > 32)
-    count = 32;
-  
-  if (dma_operation_complete(DMAX)){
+    while (dma_operation_inprogress_and_not_error(DMAX));
+    if (count > 32)
+        count = 32;
+
+    if (dma_operation_complete(DMAX)){
     for (size_t i = 0; i < count; i++)
-      dst[i] = (int32_t)(DMAX->DEST_REG[i]);
-    return DMA_OK;
-  }
-  else {
-    for (size_t i = 0; i < count; i++)
-        dst[i] = -1;
-    return get_status(DMAX);
-  }
+        dst[i] = (int32_t)(DMAX->DEST_REG[i]);
+        return DMA_OK;
+    }
+    else {
+        for (size_t i = 0; i < count; i++)
+            dst[i] = -1;
+        return get_status(DMAX);
+    }
 }
 
 void dma_init_MAC_local(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_stride, uint32_t count) {
-  while (dma_operation_inprogress_and_not_error(DMAX));
+    while (dma_operation_inprogress_and_not_error(DMAX));
 
-  uint64_t* op = (uint64_t*) operand;
-  for (size_t i = 0; i < 8; i++)
-    DMAX->OPERAND_REG[i] = op[i];
-  DMAX->SRC_ADDR = (uint64_t) src;
-  DMAX->SRCSTRIDE = src_stride;
-  DMAX->MODE = MODE_MAC;
-  DMAX->COUNT = count;
+    // uint64_t* op = (uint64_t*) operand;
+    // for (size_t i = 0; i < 8; i++)
+    // DMAX->OPERAND_REG[i] = op[i];
+    // DMAX->SRC_ADDR = (uint64_t) src;
+    // DMAX->SRCSTRIDE = src_stride;
+    // DMAX->MODE = MODE_MAC;
+    // DMAX->COUNT = count;
+
+    memcpy(DMAX->OPERAND_REG, operand, 64);
+    DMAX->SRC_ADDR = (uint64_t) src;
+    DMAX->SRCSTRIDE = src_stride;
+    DMAX->MODE = MODE_MAC;
+    DMAX->COUNT = count;
+
+}
+
+void dma_verify_MAC(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_stride, uint32_t count) {
+    printf("CORRECTNESS: --- DMA Verify MAC Results ---\r\n")
+    int16_t intended[count]; 
+    for (uint8_t i = 0; i < count; i++) {
+        for (uint8_t j = 0; j < 64; j++) {
+            int8_t *ptr = (int8_t*) src + src_stride * i + j;
+            intended[i] += operand[i] * (int8_t)(*ptr);
+        }
+        
+        if (intended == DMAX->DEST_REG[i]) {
+            printf("CORRECTNESS: [CORRECT :D]");
+        } else {
+            printf("CORRECTNESS: [INVALID D:]");
+        }
+        printf("\t(Row %u)\tExpected %d\tGot %d\r\n", i, intended, DMAX->DEST_REG[i]);
+    }
+
+    printf("Intended Result Dump (Int8):");
+    for (size_t i = 0; i < count; i++) {
+        if (i % 8 == 0) {
+            printf("\r\n%#016x:", (&intended) + i);
+        }
+        printf("\t%d", intended[i]);
+    }
+    printf("\r\nDMA Destination Register Dump (Int8):");
+    for (size_t i = 0; i < count; i++) {
+        if (i % 8 == 0) {
+            printf("\r\n%#012x:", &DMAX->DEST_REG + i);
+        }
+        printf("\t%d", (int16_t)DMAX->DEST_REG[i]);
+    }
+    printf("\r\nCORRECTNESS: !-- End DMA Verify MAC Results --!\r\n");
 
 }
 #endif
@@ -511,6 +552,7 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
             } else{
             //    printf("DMA OK\r\n");
             }
+            dma_verify_MAC(DMA0, &w->q[row_offset + mv_col], &x->q[mv_col], stride, DMA_NUM_ROWS);
 
             size_t xout_vec_col = mv_col / GS;
             for (mac_out_idx = 0; mac_out_idx < DMA_NUM_ROWS; mac_out_idx++) {
