@@ -15,14 +15,26 @@ extern "C" {
 
 // Hardware Enable //
 
-// #define ENABLE_QT_DOTPROD
+/**
+ * Enables the Quantized Transformer V_DOTPROD function.
+ */
+#define ENABLE_QT_DOTPROD
+
+/**
+ * Enables the DMA MatVec functionality to speed up matmul computations through DMA0.
+ */
 #define ENABLE_DMA_MATVEC
 
+
+// Accelerator library inclusions //
 #include "riscv.h"
-#include "hal_dma.h"
 
 #ifdef ENABLE_QT_DOTPROD
 #include "hal_qt.h"
+#endif
+
+#ifdef ENABLE_DMA_MATVEC
+#include "hal_dma.h"
 #endif
 
 #ifdef __cplusplus
