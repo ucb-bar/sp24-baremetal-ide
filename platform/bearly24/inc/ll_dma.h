@@ -40,8 +40,8 @@ typedef struct {
   __IO uint64_t SRCSTRIDE;      // 0x20
   __IO uint32_t COUNT;          // 0x28
   uint64_t RESERVED0[2];        // 0x30
-  __IO uint64_t OPERAND_REG[8]; // 0x40  
-  __I uint64_t DEST_REG[8];    // 0x80
+  __IO int8_t OPERAND_REG[64]; // 0x40  
+  __I int16_t DEST_REG[32];    // 0x80
   // uint64_t RESERVED1[24];
 } DMA_Type;
 
