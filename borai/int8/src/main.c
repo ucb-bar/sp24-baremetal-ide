@@ -483,23 +483,26 @@ void dma_verify_MAC(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_str
     printf("VERIFY: Source Address:\t%#016x\r\n", src);
     printf("VERIFY: Row Count:\t%u\r\n", count);
     printf("VERIFY: Operand Buffer Input Dump (Int8):");
+    
     for (size_t i = 0; i < 64; i++) {
         if (i % 8 == 0) {
             printf("\r\n%#016x:", (&operand) + i);
         }
         printf("\t%d", operand[i]);
     }
+
     printf("\r\nVERIFY: DMA Operand Register Dump (Int8):");
     for (size_t i = 0; i < 64; i++) {
         if (i % 8 == 0) {
             printf("\r\n%#016x:", (&DMAX->OPERAND_REG) + i);
         }
-        printf("\t%d", DMAX->OPERAND_REG[i]);
+        printf("\t%d", (int16_t)DMAX->OPERAND_REG[i]);
     }
 
     printf("\r\n");
     int16_t *intended = calloc(count, sizeof(int16_t));
-    // int16_t intended[count]; 
+
+    uint64_t start_time = READ_CSR("mcycle");
     for (size_t i = 0; i < count; i++) {
         for (size_t j = 0; j < 64; j++) {
             size_t in = src_stride * i;
@@ -516,20 +519,29 @@ void dma_verify_MAC(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_str
         }
         printf("\t(Row %u)\t\tExpected\t%d\tGot\t%d\r\n", i, intended[i], DMAX->DEST_REG[i]);
     }
-
+    uint64_t end_time = READ_CSR("mcycle");
+    printf("VERIFY: Naive comparison completed in %lu cycles (with printf).", end_time - start_time);
     printf("Intended Result Dump (Int8):");
     for (size_t i = 0; i < count; i++) {
         if (i % 8 == 0) {
             printf("\r\n%#016x:", (&intended) + i);
         }
-        printf("\t%d", intended[i]);
+        printf("\t%#x", (uint16_t)intended[i]);
     }
-    printf("\r\nDMA Destination Register Dump (Int8):");
-    for (size_t i = 0; i < count; i++) {
+    printf("\r\nDMA Destination Register Dump (Int8, Full Register):");
+    for (size_t i = 0; i < 32; i++) {
         if (i % 8 == 0) {
             printf("\r\n%#016x:", &DMAX->DEST_REG + i);
         }
-        printf("\t%d", DMAX->DEST_REG[i]);
+        printf("\t%d", (int16_t)DMAX->DEST_REG[i]);
+    }
+
+    printf("\r\nDMA Destination Register Dump (Int8 Hexadecimal, Full Register):");
+    for (size_t i = 0; i < 32; i++) {
+        if (i % 8 == 0) {
+            printf("\r\n%#016x:", &DMAX->DEST_REG + i);
+        }
+        printf("\t%#04x", (uint16_t)DMAX->DEST_REG[i]);
     }
     printf("\r\nVERIFY: !-- End DMA Verify MAC Results Utility --!\r\n");
     free(intended);
@@ -565,15 +577,19 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
         for (mv_col = 0; mv_col < n / DMA_NUM_COLS * DMA_NUM_COLS; mv_col += DMA_NUM_COLS) {
             // (void*)(w->q + in + j + n) - (void*)(w->q + in + j)
             // DMA Struct, Source Matrix, Operand Vector, Source Row Stride (bytes), Row Count
+            uint64_t start_time = READ_CSR("mcycle");
             dma_init_MAC_local(DMA0, &w->q[row_offset + mv_col], &x->q[mv_col], stride, DMA_NUM_ROWS);
 
             // Blocking operation!
+            while (dma_operation_inprogress_and_not_error(DMA0));
+            uint64_t end_time = READ_CSR("mcycle");
             status = dma_get_MAC_result_as_int32(DMA0, &mac_output, DMA_NUM_ROWS);
+            
             //printf("Got MAC result!");
             if (status != DMA_OK) {
                 printf("ERR: DMA returned error status code %d\r\n", status);
             } else{
-                printf("DMA OK\r\n");
+                printf("DMA OK (Finished in %lu cycles)\r\n", end_time - start_time);
             }
             dma_verify_MAC(DMA0, &w->q[row_offset + mv_col], &x->q[mv_col], stride, DMA_NUM_ROWS);
             goto jump_out_test;
