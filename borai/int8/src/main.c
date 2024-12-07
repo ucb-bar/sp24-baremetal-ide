@@ -478,20 +478,43 @@ void dma_init_MAC_local(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src
 }
 
 void dma_verify_MAC(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_stride, uint32_t count) {
-    printf("CORRECTNESS: --- DMA Verify MAC Results ---\r\n")
-    int16_t intended[count]; 
-    for (uint8_t i = 0; i < count; i++) {
-        for (uint8_t j = 0; j < 64; j++) {
-            int8_t *ptr = (int8_t*) src + src_stride * i + j;
-            intended[i] += operand[i] * (int8_t)(*ptr);
+    printf("VERIFY: --- DMA Verify MAC Results Utility ---\r\n");
+    printf("VERIFY: DMA Stride:\t%u\r\n", DMAX->SRCSTRIDE);
+    printf("VERIFY: Source Address:\t%#016x\r\n", src);
+    printf("VERIFY: Row Count:\t%u\r\n", count);
+    printf("VERIFY: Operand Buffer Input Dump (Int8):");
+    for (size_t i = 0; i < 64; i++) {
+        if (i % 8 == 0) {
+            printf("\r\n%#016x:", (&operand) + i);
+        }
+        printf("\t%d", operand[i]);
+    }
+    printf("\r\nVERIFY: DMA Operand Register Dump (Int8):");
+    for (size_t i = 0; i < 64; i++) {
+        if (i % 8 == 0) {
+            printf("\r\n%#016x:", (&DMAX->OPERAND_REG) + i);
+        }
+        printf("\t%d", DMAX->OPERAND_REG[i]);
+    }
+
+    printf("\r\n");
+    int16_t *intended = calloc(count, sizeof(int16_t));
+    // int16_t intended[count]; 
+    for (size_t i = 0; i < count; i++) {
+        for (size_t j = 0; j < 64; j++) {
+            size_t in = src_stride * i;
+            int8_t *ptr = (int8_t*) src + in + j;
+            //printf("VERIFY:\t(Col %u)\tAdding\t%d = %d * %d\t\tto\t%d\r\n", j, operand[j] * (*ptr), operand[j], *ptr, intended[i]);
+            intended[i] += operand[j] * (*ptr);
+
         }
         
-        if (intended == DMAX->DEST_REG[i]) {
-            printf("CORRECTNESS: [CORRECT :D]");
+        if (intended[i] == DMAX->DEST_REG[i]) {
+            printf("VERIFY: [CORRECT :D]");
         } else {
-            printf("CORRECTNESS: [INVALID D:]");
+            printf("VERIFY: [INVALID D:]");
         }
-        printf("\t(Row %u)\tExpected %d\tGot %d\r\n", i, intended, DMAX->DEST_REG[i]);
+        printf("\t(Row %u)\t\tExpected\t%d\tGot\t%d\r\n", i, intended[i], DMAX->DEST_REG[i]);
     }
 
     printf("Intended Result Dump (Int8):");
@@ -504,12 +527,12 @@ void dma_verify_MAC(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_str
     printf("\r\nDMA Destination Register Dump (Int8):");
     for (size_t i = 0; i < count; i++) {
         if (i % 8 == 0) {
-            printf("\r\n%#012x:", &DMAX->DEST_REG + i);
+            printf("\r\n%#016x:", &DMAX->DEST_REG + i);
         }
-        printf("\t%d", (int16_t)DMAX->DEST_REG[i]);
+        printf("\t%d", DMAX->DEST_REG[i]);
     }
-    printf("\r\nCORRECTNESS: !-- End DMA Verify MAC Results --!\r\n");
-
+    printf("\r\nVERIFY: !-- End DMA Verify MAC Results Utility --!\r\n");
+    free(intended);
 }
 #endif
 
@@ -550,10 +573,10 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
             if (status != DMA_OK) {
                 printf("ERR: DMA returned error status code %d\r\n", status);
             } else{
-            //    printf("DMA OK\r\n");
+                printf("DMA OK\r\n");
             }
             dma_verify_MAC(DMA0, &w->q[row_offset + mv_col], &x->q[mv_col], stride, DMA_NUM_ROWS);
-
+            goto jump_out_test;
             size_t xout_vec_col = mv_col / GS;
             for (mac_out_idx = 0; mac_out_idx < DMA_NUM_ROWS; mac_out_idx++) {
                 xout[mv_row + mac_out_idx] += ((float) mac_output[mac_out_idx]) * w->s[(n * mac_out_idx + mv_col) / GS] * x->s[xout_vec_col];
@@ -592,6 +615,9 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
 // #endif
 
                 for (; k < GS; k++) {   // Performs single operations
+                    // if (i == 0 && j == 0) {
+                    //     printf("REAL:\t(Col %u) Adding\t%d = %d * %d\tto\t%d\r\n", k, ((int32_t) x->q[j + k]) * ((int32_t) w->q[in + j + k]), ival);
+                    // }
                     ival += ((int32_t) x->q[j + k]) * ((int32_t) w->q[in + j + k]);
                 }
                 val += ((float) ival) * w->s[(in + j) / GS] * x->s[j / GS];
@@ -605,7 +631,8 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
 
     i = mv_row;
 #endif
-    
+jump_out_test:
+    i = 0;
     /// Naive Solution with optional QTDP, which can be used alongside DMA for extra leftover rows.
     for (; i < d; i++) {
 
@@ -637,6 +664,9 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
 #endif
 
             for (; k < GS; k++) {   // Performs single operations
+                // if (i == 0 && j == 0) {
+                //     printf("REAL:\t(Col %u) Adding\t%d = %d * %d\tto\t%d\r\n", k, ((int32_t) x->q[j + k]) * ((int32_t) w->q[in + j + k]), (int32_t) x->q[j + k], (int32_t) w->q[in + j + k], ival);
+                // }
                 ival += ((int32_t) x->q[j + k]) * ((int32_t) w->q[in + j + k]);
             }
             val += ((float) ival) * w->s[(in + j) / GS] * x->s[j / GS];

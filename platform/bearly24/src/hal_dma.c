@@ -33,12 +33,12 @@ void dma_init_MAC(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_strid
   //   reg[i] = op[i];
   
   // 8*8byte-wide elements in operand = 64 total cols
+  DMAX->MODE = MODE_MAC;
   memcpy(DMAX->OPERAND_REG, operand, 64);
   DMAX->SRC_ADDR = (uint64_t) src;
   DMAX->SRCSTRIDE = src_stride;
-  DMAX->MODE = MODE_MAC;
   DMAX->COUNT = count;
-
+  
 }
 
 DMA_Status dma_await_result(DMA_Type* DMAX) {
