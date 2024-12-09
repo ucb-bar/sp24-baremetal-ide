@@ -9,6 +9,7 @@ CC=gcc -O -Wall -std=c11 -pedantic
 CURL=curl
 GZIP=gzip
 CMAKE=cmake
+SPIKE=spike
 
 DOWNLOAD_URL= https://ossci-datasets.s3.amazonaws.com/mnist
 DATADIR=data
@@ -19,8 +20,8 @@ MNIST_FILES= \
 	$(DATADIR)/t10k-images-idx3-ubyte \
 	$(DATADIR)/t10k-labels-idx1-ubyte
 
-all: get_mnist mnist_unix 
 
+# Control MNIST
 get_mnist:
 	-mkdir ./data
 	-$(CURL) $(DOWNLOAD_URL)/train-images-idx3-ubyte.gz | \
@@ -32,10 +33,23 @@ get_mnist:
 	-$(CURL) $(DOWNLOAD_URL)/t10k-labels-idx1-ubyte.gz | \
 		$(GZIP) -dc > ./data/t10k-labels-idx1-ubyte
 
-mnist_unix:
-	$(CC) -S ./ -B ./build/ -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -D CHIP=labchip
-	cmake --build ./build/ --target blinky
+clean_build: 
+	rm -rf build 
+
+mnist_unix_sim:
+	$(CMAKE) -S ./ -B ./build/ -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake 
+	$(CMAKE) --build ./build/ --target mnist
+
+mnist_unix_bearly:
+	$(CMAKE) -S ./ -B ./build/ -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -D CHIP=labchip
+	$(CMAKE) --build ./build/ --target mnist
+
+mnist_sim: 
+	$(SPIKE) ./build/main/conv/mnist.elf
 
 mnist_windows: 
-	$(CC) -S ./ -B ./build/ -G "Unix Makefiles" -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmakec.o
-	cmake --build ./build/ --target blinky
+	$(CMAKE) -S ./ -B ./build/ -G "Unix Makefiles" -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmakec.o
+	$(CMAKE) --build ./build/ --target mnist
+
+mnist_sim: clean_build mnist_unix_sim mnist_sim
+mnist_bearly: clean_build mnist_unix_bearly mnist_sim

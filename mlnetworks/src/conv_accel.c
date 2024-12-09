@@ -4,6 +4,7 @@
 #include <stdint.h>
 //MMIO Base Address
 #define MMIO_BASE   0x08808000
+#define MAX_TEMP_BUFFER_SIZE 1024
 
 
 // Implementation of the conv_accelarator function
@@ -76,7 +77,7 @@ void convolution2d(int8_t *source, int16_t *dest, int width, int height, int8_t 
     // Fixed-size buffers for the accelerator
     // Assuming maximum segment width is 64 and max height is reasonable
     // assert(width <= 1024 && height <= 1024); // Ensure the size is within the predefined limits
-    int8_t temp_src[64 * 1024];  // 64 columns by maximum height
+    int8_t temp_src[1024];  // 64 columns by maximum height
     int16_t temp_dest[62 * 1022];  // 62 columns by (maximum height - 2)
 
     // Process the image in overlapping 64-column-wide segments

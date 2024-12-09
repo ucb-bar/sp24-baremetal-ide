@@ -9,7 +9,7 @@
 #include <math.h>
 #include "cnn.h"
 #include "conv_accel.h"
-#define MAX_TEMP_BUFFER_SIZE 1024
+#define MAX_TEMP_BUFFER_SIZE 4096
 
 #define DEBUG_LAYER 0
 
