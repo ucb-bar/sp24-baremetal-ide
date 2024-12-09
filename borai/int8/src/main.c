@@ -360,7 +360,7 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
 
   printf("\tQTrans DotProd:\t");
 #ifdef ENABLE_QT_DOTPROD
-  GS_QTDP_BOUND = GS / 16 * 16;
+  GS_QTDP_BOUND = GS / 8 * 8;
   printf("Enabled\r\n");
 #else
   printf("Disabled\r\n");
@@ -478,7 +478,7 @@ void dma_init_MAC_local(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src
 }
 
 void dma_verify_MAC(DMA_Type* DMAX, void* src, int8_t* operand, uint64_t src_stride, uint32_t count) {
-    printf("VERIFY: --- DMA Verify MAC Results Utility ---\r\n");
+    printf("VERIFY: --- DMA Verify MAC Results Utility ---");
     printf("VERIFY: DMA Stride:\t%u\r\n", DMAX->SRCSTRIDE);
     printf("VERIFY: Source Address:\t%#016x\r\n", src);
     printf("VERIFY: Row Count:\t%u\r\n", count);
@@ -556,8 +556,6 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
     // d = num rows, n = num cols
     int i = 0;
 
-#define DMA_NUM_ROWS 16
-#define DMA_NUM_COLS 64
 #ifdef ENABLE_DMA_MATVEC
     // Assumption: GS is a multiple of and equal to matvec width (64 int8s).
     int32_t mv_row = 0;  // Top-left of DMA start point
@@ -589,10 +587,9 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
             if (status != DMA_OK) {
                 printf("ERR: DMA returned error status code %d\r\n", status);
             } else{
-                printf("DMA OK (Finished in %lu cycles)\r\n", end_time - start_time);
+                // printf("DMA OK (Finished in %lu cycles)\r\n", end_time - start_time);
             }
             dma_verify_MAC(DMA0, &w->q[row_offset + mv_col], &x->q[mv_col], stride, DMA_NUM_ROWS);
-            goto jump_out_test;
             size_t xout_vec_col = mv_col / GS;
             for (mac_out_idx = 0; mac_out_idx < DMA_NUM_ROWS; mac_out_idx++) {
                 xout[mv_row + mac_out_idx] += ((float) mac_output[mac_out_idx]) * w->s[(n * mac_out_idx + mv_col) / GS] * x->s[xout_vec_col];
@@ -647,7 +644,6 @@ void matmul(float* xout, QuantizedTensor *x, QuantizedTensor *w, int n, int d) {
 
     i = mv_row;
 #endif
-jump_out_test:
     i = 0;
     /// Naive Solution with optional QTDP, which can be used alongside DMA for extra leftover rows.
     for (; i < d; i++) {
@@ -665,18 +661,29 @@ jump_out_test:
             int k = 0;
 
 #ifdef ENABLE_QT_DOTPROD
-        // if (d > n) {
-            for (; k < GS_QTDP_BOUND; k += 16) { // Dot product on vector
-                int32_t dot_out_temp;
-                printf("n = %d, d = %d, i = %d, j = %d, k = %d, upper = %d.\r\n", n, d, i, j, k, GS_QTDP_BOUND);
+        if (d > n) {
+            for (; k < GS_QTDP_BOUND; k += 8) { // Dot product on vector
+                int64_t dot_out_temp;
+                // printf("n = %d, d = %d, i = %d, j = %d, k = %d, upper = %d.\r\n", n, d, i, j, k, GS_QTDP_BOUND);
+                //
                 asm volatile("fence");
                 V_LOAD(1, &(x->q[j + k]));
+                asm volatile("fence");
                 V_LOAD(2, &(w->q[in + j + k]));
+                asm volatile("fence");
                 V_DOT_PROD(dot_out_temp, 1, 2);
                 asm volatile("fence");
+
+                // Test
+                int32_t temp_sum = 0;
+                for (int ia = 0; ia < 8; ia++) {
+                    printf("\tSumming %d = %d * %d\r\n", ((int32_t) x->q[j + k + ia]) * ((int32_t) w->q[in + j + k + ia]), ((int32_t) x->q[j + k + ia]), ((int32_t) w->q[in + j + k + ia]));
+                    temp_sum += ((int32_t) x->q[j + k + ia]) * ((int32_t) w->q[in + j + k + ia]);
+                }
+                printf("Naive Output: %d, QT Output: %d\r\n", temp_sum, dot_out_temp);
                 ival += dot_out_temp;
             }
-        // }
+        }
 #endif
 
             for (; k < GS; k++) {   // Performs single operations
@@ -1294,7 +1301,7 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
         printf("BENCHMARK: Seconds per token (float):\t%f\r\n", ((float)(end-start)/(float)MTIME_FREQ)/(float)(pos-1));
 
         printf("BENCHMARK: MTIME Frequency:\t%lu\r\n", MTIME_FREQ);
-        printf("STDERR: achieved tok/s:\t%lu\r\n", (pos-1) / (double)(end-start)*1000);
+        printf("STDERR: achieved tok/s:\t%f\r\n", 1/((float)(end-start)/(float)MTIME_FREQ)/(float)(pos-1));
     }
 
     free(prompt_tokens);
@@ -1439,8 +1446,8 @@ void app_main() {
   // Parameters //
   float temperature = 0.8f;   // 0.0 = greedy deterministic. 1.0 = original. don't set higher
   float topp = 0.9f;          // top-p in nucleus sampling. 1.0 = off. 0.9 works well, but slower
-  int steps = 256;            // number of steps to run for (default 512)
-  char *prompt = NULL;        // prompt string (I have it set up to ask screen if not given)
+  int steps = 128;            // number of steps to run for (default 512)
+  char *prompt = "If you";        // prompt string
   unsigned long long rng_seed = CLINT->MTIME; // seed rng with time by default
   GenMode mode = GENERATE;    // generate|chat
   char *system_prompt = NULL; // the (optional) system prompt to use in chat mode (I have it set up to ask screen if not given)

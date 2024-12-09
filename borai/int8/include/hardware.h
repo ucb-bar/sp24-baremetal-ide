@@ -23,7 +23,9 @@ extern "C" {
 /**
  * Enables the DMA MatVec functionality to speed up matmul computations through DMA0.
  */
-#define ENABLE_DMA_MATVEC
+//#define ENABLE_DMA_MATVEC
+#define DMA_NUM_ROWS 16
+#define DMA_NUM_COLS 64
 
 
 // Accelerator library inclusions //
