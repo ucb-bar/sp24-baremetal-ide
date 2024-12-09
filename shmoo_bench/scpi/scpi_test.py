@@ -1,48 +1,62 @@
-# A basic test of interactions with lab equipment via SCPI. Frequency will be adjusted via the PLL
+import matplotlib.pyplot as plt
+import numpy as np
 
-import pyvisa
-import time
+def read_data(file_name):
+    freq_values = []
+    voltage_values = []
+    valid_values = []
+    power_values = []
 
-# Establish connection to the power supply
-rm = pyvisa.ResourceManager("@py")
+    with open(file_name, 'r') as file:
+        for line in file:
+            parts = line.strip().split(', ')
+            freq = float(parts[0].split(': ')[1])
+            voltage = round(float(parts[1].split(': ')[1]), 2)
+            valid = parts[2].split(': ')[1]
+            power = float(parts[3].split(': ')[1])
 
-psu = rm.open_resource('TCPIP::169.254.58.10::gpib0,7::INSTR')
+            freq_values.append(freq)
+            voltage_values.append(voltage)
+            valid_values.append(valid)
+            power_values.append(power)
+    
+    return freq_values, voltage_values, valid_values, power_values
 
-# Need to verify that this is the power supply. psu_verification should be 
-# something like "Keysight Technologies,E3646A,0,X.X-Y.Y-Z.Z"
-psu_verification = psu.query("*IDN?")
+file_name = 'output.txt'
 
-psu.write("*RST")  # Reset the power supply
+freq_values, voltage_values, valid_values, power_values = read_data(file_name)
 
-# Set the current limit (for example, 2A), look into this and see if actually necessary
-psu.write("SOURce:CURRent 2") 
- 
-start_voltage = 0.5
+unique_freqs = np.unique(freq_values)
+unique_voltages = np.unique(voltage_values)
 
-end_voltage = 1.2
+shmoo_plot = np.zeros((len(unique_voltages), len(unique_freqs)))
+power_plot = np.zeros((len(unique_voltages), len(unique_freqs)))
 
-step_size = 0.05  
+for i, freq in enumerate(unique_freqs):
+    for j, voltage in enumerate(unique_voltages):
+        validity = valid_values[i * len(unique_voltages) + j]
+        if validity == "Valid":
+            shmoo_plot[j, i] = 1
+            power_plot[j, i] = power_values[i * len(unique_voltages) + j]
 
-# Loop through the voltage range and set the voltage
-current_voltage = start_voltage 
+plt.figure(figsize=(12, 8))
 
-# Only channel 2 works
-psu.write("INST:SEL CH2")
+cmap = plt.cm.colors.ListedColormap(['red', 'springgreen'])
 
-# Set current to 100mA
-psu.write("CURR 0.1")
+plt.imshow(shmoo_plot, cmap=cmap, aspect='auto', origin='lower')
 
-while current_voltage <= end_voltage: # Set the voltage   
+for i in range(len(unique_freqs)):
+    for j in range(len(unique_voltages)):
+        if shmoo_plot[j, i] == 1:  # Valid
+            plt.text(i, j, f'{power_plot[j, i]:.3f}W', ha='center', va='center', fontsize=8, color='black')
 
-     psu.write(f"VOLT {current_voltage}")
+plt.xlabel('Frequency (MHz)')
+plt.ylabel('Voltage (V)')
+plt.title('Shmoo Plot with Power Consumption')
 
-     voltage = psu.query("VOLT?") 
-     print(f"Voltage set to: {voltage}V") 
- 
-     current_voltage += step_size
+plt.xticks(np.arange(len(unique_freqs)), unique_freqs, rotation=45)
+plt.yticks(np.arange(len(unique_voltages)), unique_voltages)
 
-     # Insert benchmark here to run at every step.
-     # Write a benchmark that uses the PLL to adjust frequency, then have the Pico relay the frequency over to the PC.
-     # Or can think of another way to retrieve the PLL CLKOUT.
-
-psu.close()
+plt.tight_layout()
+# plt.savefig("output.jpg")
+plt.show()
