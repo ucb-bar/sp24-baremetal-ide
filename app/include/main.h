@@ -32,9 +32,11 @@ extern "C" {
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <inttypes.h>
 
 #include "riscv.h"
-
+#include "float16.h"
+#include "float16.c"
 
 /**
  * This section controls which peripheral device is included in the application program.

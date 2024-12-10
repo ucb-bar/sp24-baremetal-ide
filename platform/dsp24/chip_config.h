@@ -16,10 +16,10 @@ extern "C" {
 //  System Clock
 // ================================
 // system clock frequency in Hz
-#define SYS_CLK_FREQ   16000000
+#define SYS_CLK_FREQ   100000000
 
 // CLINT time base frequency in Hz
-#define MTIME_FREQ     16000000
+#define MTIME_FREQ     100000000
 
 
 // ================================
@@ -44,6 +44,8 @@ extern "C" {
 /* Peripheral Pointer Definition */
 #define UART0_BASE              (UART_BASE)
 
+#define UART1_BASE              (0x10021000U)
+
 /* Peripheral Structure Definition */
 #define RCC                     ((RCC_Type *)RCC_BASE)
 #define PLL                     ((PLL_Type *)PLL_BASE)
@@ -51,6 +53,8 @@ extern "C" {
 #define PLIC                    ((PLIC_Type *)PLIC_BASE)
 #define PLIC_CC                 ((PLIC_ContextControl_Type *)(PLIC_BASE + 0x00200000U))
 #define UART0                   ((UART_Type *)UART0_BASE)
+#define UART1                   ((UART_Type *)UART1_BASE)
+
 
 
 

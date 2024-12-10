@@ -35,8 +35,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define PI 3.14159265359
-#define HEIGHT 24
-#define WIDTH 32
+#define HEIGHT 255
+#define WIDTH 255
 #define MAX_KERNEL_SIZE 31  // This will support sigma up to 5.0
 
 #define INPUT_ADDR      0x08800000
@@ -72,57 +72,6 @@
 
 void app_init() {
   // torch::executor::runtime_init();
-}
-
-int my_strcmp(const char *str1, const char *str2) {
-    // Loop through each character of both strings
-    while (*str1 && *str2) {
-        if (*str1 != *str2) {
-            // Return the difference if characters don't match
-            return (unsigned char)*str1 - (unsigned char)*str2;
-        }
-        str1++;
-        str2++;
-    }
-
-    // If we exit the loop, check the remaining characters
-    return (unsigned char)*str1 - (unsigned char)*str2;
-}
-
-void read_pixels(uint8_t* image_data) { 
-    // Pixel data transfer
-    for (int i = 0; i < WIDTH * HEIGHT; i++) {
-        uart_receive(UART0, &image_data[i], sizeof(char), 100000);
-    }
-
-}
-void capture_image(uint8_t* image_data) {
-
-    printf("r\n");
-    printf("x\n");
-
-    int index = 0;
-    int start_found = 0; // false
-    char received; 
-    char buffer[60];
-
-    while (1) {
-        uart_receive(UART0, &received, sizeof(char), 100000);
-        if (received == '\n' || index >= sizeof(buffer) - 1) {
-            buffer[index] = '\0';
-            index = 0;
-
-            if (my_strcmp(buffer, "START\r") == 0) {
-                read_pixels(image_data);
-            }
-            
-            if (my_strcmp(buffer, "END\r") == 0) {
-                break;
-            }
-        } else {
-            buffer[index++] = received;
-        }
-    }
 }
 
 // Double threshold implementation
@@ -243,47 +192,107 @@ void convolution_1D(uint8_t *arr, size_t arr_len, float *kernel, size_t kernel_l
     }
 }
 
+void addFive(uint8_t* src, uint8_t* dst) {
+    uint8_t* src_ptr = src;
+    uint8_t* dst_ptr = dst;
+    uint8_t* src_end = src_ptr + (HEIGHT * WIDTH);
+    
+    while (src_ptr < src_end) {
+        asm volatile("vsetvli zero, %0, e8, m8, ta, ma" : : "r"(16));
+        asm volatile("vle8.v v0, (%0)" : : "r"(src_ptr) : "memory");
+        asm volatile("vadd.vi v2, v2, 5");
+        asm volatile("vse8.v v2, (%0)" : : "r"(dst_ptr));
+        
+        src_ptr += 16;
+        dst_ptr += 16;
+    }
+}
+
 // Gaussian Blur implementation
-void gaussian_blur(uint8_t* src, uint8_t* dst) {
+void gaussian_blur_opt(uint8_t* src, uint8_t* dst) {
     uint32_t in_len[1] = {WIDTH};
     uint16_t in_dilation[1] = {1};
 
-    uint8_t test_out1[WIDTH * HEIGHT];
+    uint16_t test_out1[WIDTH * HEIGHT];
     for (int i = 0; i < 8; i++) {
         test_out1[(HEIGHT - 2)*WIDTH + i] = 0;
         test_out1[(HEIGHT - 1)*WIDTH + i] = 0;
     }
-    uint8_t test_out2[WIDTH * HEIGHT];
+    uint16_t test_out2[WIDTH * HEIGHT];
     for (int i = 0; i < 8; i++) {
         test_out2[0*WIDTH + i] = 0;
-        test_out2[(HEIGHT - 1)*WIDTH + i] = 0;
+        test_out2[(HEIGHT - 1) * WIDTH + i] = 0;
     }
-    uint8_t test_out3[WIDTH * HEIGHT];
+    uint16_t test_out3[WIDTH * HEIGHT];
     for (int i = 0; i < 8; i++) {
         test_out3[0*WIDTH + i] = 0;
         test_out3[1*WIDTH + i] = 0;
     }
 
     for (int y = 0; y < HEIGHT - 2; y++) {
-        float in_kernel1[8] = {1/16.0, 2/16.0, 1/16.0, 0, 0, 0, 0, 0};
-        convolution_1D(src + y*WIDTH, in_len[0], in_kernel1, 8, in_dilation[0], test_out1 + y*WIDTH);
+        reg_write8(RESET_ADDR, 1);
+
+        uint32_t in_len[1] = {WIDTH};
+        uint16_t in_dilation[1] = {1};
+        uint16_t in_kernel[16] = {0x2D00, 0x3000, 0x2D00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // {1/16, 2/16, 1/16, 0, 0, 0, 0, 0} in FP16              
+
+        set_conv_params(16, 1, ((uint64_t*) in_kernel));                  
+        write_conv_dma(0, WIDTH, src + y*WIDTH);
+
+
+        asm volatile ("fence");
+        start_conv();
+
+        asm volatile ("fence");
+
+        read_conv_dma(0, WIDTH, ((uint64_t*) (test_out1 + y*WIDTH)));
     }
 
     for (int y = 1; y < HEIGHT - 1; y++) {
-        float in_kernel2[8] = {2/16.0, 4/16.0, 2/16.0, 0, 0, 0, 0, 0};
-        convolution_1D(src + y*WIDTH, in_len[0], in_kernel2, 8, in_dilation[0], test_out2 + y*WIDTH);
+        reg_write8(RESET_ADDR, 1);
+
+        uint32_t in_len[1] = {WIDTH};
+        uint16_t in_dilation[1] = {1};
+        uint16_t in_kernel[16] = {0x3000, 0x3400, 0x3000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // {2/16, 4/16, 2/16, 0, 0, 0, 0, 0} in FP16              
+
+        set_conv_params(16, 1, ((uint64_t*) in_kernel));                  
+        write_conv_dma(0, WIDTH, src + y*WIDTH);
+
+        uint64_t cpu_start_cycles = READ_CSR("mcycle");
+        asm volatile ("fence");
+        start_conv();
+
+        uint64_t cpu_end_cycles = READ_CSR("mcycle");
+
+        asm volatile ("fence");
+
+        read_conv_dma(0, WIDTH, ((uint64_t*) (test_out3 + y*WIDTH)));
     }
 
     for (int y = 2; y < HEIGHT; y++) {
-        float in_kernel3[8] = {1/16.0, 2/16.0, 1/16.0, 0, 0, 0, 0, 0};
-        convolution_1D(src + y*WIDTH, in_len[0], in_kernel3, 8, in_dilation[0], test_out3 + y*WIDTH);
+        reg_write8(RESET_ADDR, 1);
+
+        uint32_t in_len[1] = {WIDTH};
+        uint16_t in_dilation[1] = {1};
+        uint16_t in_kernel[16] = {0x2D00, 0x3000, 0x2D00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // {1/16, 2/16, 1/16, 0, 0, 0, 0, 0} in FP16              
+
+        set_conv_params(16, 1, ((uint64_t*) in_kernel));                  
+        write_conv_dma(0, WIDTH, src + y*WIDTH);
+
+        asm volatile ("fence");
+        start_conv();
+
+        asm volatile ("fence");
+        read_conv_dma(0, WIDTH, ((uint64_t*) (test_out3 + y*WIDTH)));
     }
 
     for (int y = 1; y < HEIGHT - 1; y++) {
         for (int x = 0; x < WIDTH; x++) {
-            dst[y*WIDTH+x] = test_out1[(y-1)*WIDTH+x] + test_out2[y*WIDTH+x] + test_out3[(y+1)*WIDTH+x];
+            dst[y*WIDTH+x] = f16_int(f16_add(f16_add(test_out1[(y-1)*WIDTH+x], test_out2[y*WIDTH+x]), test_out3[(y+1)*WIDTH+x]));
         }
     }
+
+    addFive(dst, dst);
 }
 
 // Sobel operator implementation
@@ -354,17 +363,13 @@ int main(int argc, char **argv) {
   /* Configure the system clock */
   /* Configure the system clock */
   
-  /* USER CODE BEGIN SysInit */ 
+  /* USER CODE BEGIN SysInit */
   UART_InitType UART_init_config;
   UART_init_config.baudrate = 115200;
   UART_init_config.mode = UART_MODE_TX_RX;
   UART_init_config.stopbits = UART_STOPBITS_2;
   uart_init(UART0, &UART_init_config);
-
   /* USER CODE END SysInit */
-
-    
-
 
   /* Initialize all configured peripherals */  
   /* USER CODE BEGIN Init */
@@ -377,11 +382,6 @@ int main(int argc, char **argv) {
   //   app_main();
   //   return 0;
   // }
-
-
-  uint8_t image_data[WIDTH * HEIGHT]; // Stack array for image data
-
-  capture_image(image_data);
   
   uint8_t blurred[WIDTH * HEIGHT] = {0};
   uint8_t gradientMagnitude[WIDTH * HEIGHT] = {0};
@@ -390,7 +390,7 @@ int main(int argc, char **argv) {
   uint8_t threshold[WIDTH * HEIGHT] = {0};
   uint8_t output[WIDTH * HEIGHT] = {0};
 
-  gaussian_blur(image_data, blurred);
+  gaussian_blur_opt(input, blurred);
   sobelOperator(blurred, gradientMagnitude, gradientDirection);
   nonMaxSuppression(gradientMagnitude, gradientDirection, nms);
   doubleThreshold_opt(nms, threshold, WIDTH * HEIGHT, 0.2, 0.1);  // High threshold = 0.2, Low threshold = 0.1
@@ -399,6 +399,8 @@ int main(int argc, char **argv) {
   for (size_t x = 0; x < sizeof(output) / sizeof(output[0]); x++) {
     printf("%c", (unsigned char)output[x]); // Send exactly 1 byte
   }
+
+//   printf("Edge detection complete. Result saved as 'output.pgm'\n");
 
   return 0;
   /* USER CODE END WHILE */
