@@ -30,7 +30,7 @@ boraiq:
 .PHONY: build
 build:
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=$(CHIP)
-	cmake --build ./build/ --target $(TARGET_NAME)
+	cmake --build ./build/ --target $(TARGET)
 
 .PHONY: ocd
 ocd:
