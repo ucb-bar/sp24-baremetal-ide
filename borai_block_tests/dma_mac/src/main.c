@@ -81,6 +81,32 @@
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN PUC */
 
+DMA_Status dma_get_MAC_result_offset_aware(DMA_Type* DMAX, int16_t* dst, uint32_t count) {
+  while (dma_operation_inprogress_and_not_error(DMAX));
+  if (count > 32)
+    count = 32;
+  
+  if (dma_operation_complete(DMAX)){
+    // Copy count * 2^4 (count * 16 byte vals)
+    //memcpy(dst, (int8_t*)(&DMAX->DEST_REG) - (uint8_t)(((uint64_t)DMAX->SRC_ADDR & 0x000000F0U) >> 4), count << 4);
+    // int64_t* op = (int64_t *) operand;
+    // int64_t* reg = (int64_t *) DMAX->OPERAND_REG;
+    uint8_t shift_correction_factor = (uint8_t)(((uint64_t)DMAX->SRC_ADDR & 0x000000F0U) >> 4);
+    size_t i = 0;
+    for (; i < count/4*4; i+=4)
+      *(int64_t*)(dst + i) = *(int64_t*)(DMAX->DEST_REG + i) >> shift_correction_factor;
+      //*(int64_t*)(dst + i + 4) = *(int64_t*)(DMAX->DEST_REG + i + 4) >> shift_correction_factor;
+    for (; i < count; i++)
+      dst[i] = ((int16_t *) DMAX->DEST_REG)[i] >> shift_correction_factor;
+    return DMA_OK;
+  }
+  else {
+    for (size_t i = 0; i < count; i++)
+        dst[i] = -1;
+    return get_status(DMAX);
+  }
+}
+
 
 /**
  * dma_verify_MAC
@@ -112,8 +138,8 @@ void dma_verify_MAC(DMA_Type *DMAX, void *src, int8_t *operand, uint64_t src_str
   // Start matrix-vector multiplication. Blocking operation.
   uint64_t start_time = READ_CSR("mcycle");
   dma_init_MAC(DMAX, src, operand, src_stride, count);
+  DMA_Status status = dma_get_MAC_result_offset_aware(DMAX, dst, count);
   uint64_t end_time = READ_CSR("mcycle");
-  DMA_Status status = dma_get_MAC_result(DMAX, dst, count);
   if (status != DMA_OK) {
     printf("ERROR: DMA returned error status code %d\r\n", status);
   } else{
@@ -163,6 +189,7 @@ void dma_verify_MAC(DMA_Type *DMAX, void *src, int8_t *operand, uint64_t src_str
   uint64_t end_time_naive = READ_CSR("mcycle");
   printf("VERIFY: Naive run completed in %lu cycles.\r\n", end_time_naive - start_time_naive);
 
+  printf("VERIFY: --- Comparing DEST_REG values directly ---\r\n");
   for (size_t i = 0; i < count; i++) {
     if (intended[i] == DMAX->DEST_REG[i]) {
       printf("VERIFY: [CORRECT :D]");
@@ -172,6 +199,15 @@ void dma_verify_MAC(DMA_Type *DMAX, void *src, int8_t *operand, uint64_t src_str
     printf("\t(Row %lu)\t\tExpected\t%d\tGot\t%d\r\n", i, intended[i], DMAX->DEST_REG[i]);
   }
 
+  printf("VERIFY: --- Comparing corrected driver values ---\r\n");
+  for (size_t i = 0; i < count; i++) {
+    if (intended[i] == dst[i]) {
+      printf("VERIFY: [CORRECT :D]");
+    } else {
+      printf("VERIFY: [INVALID D:]");
+    }
+    printf("\t(Row %lu)\t\tExpected\t%d\tGot\t%d\r\n", i, intended[i], dst[i]);
+  }
   
   printf("Intended Result Dump (Int8):");
   for (size_t i = 0; i < count; i++) {
@@ -195,6 +231,14 @@ void dma_verify_MAC(DMA_Type *DMAX, void *src, int8_t *operand, uint64_t src_str
     }
     printf("\t%#04x", (uint16_t)DMAX->DEST_REG[i]);
   }
+
+  printf("\r\nDMA Destination Output Memcpy Dump (Int8 Hexadecimal, Full Range):");
+  for (size_t i = 0; i < 32; i++) {
+    if (i % 8 == 0) {
+      printf("\r\n%p:", dst + i);
+    }
+    printf("\t%#04x", (uint16_t)dst[i]);
+  }
   printf("\r\nVERIFY: !-- End DMA Verify MAC Results Utility --!\r\n");
   // free(intended);
   printf("--------------- [HART ID %lu] Finished test \"%s\" ---------------\r\n", mhartid, test_name);
@@ -207,7 +251,7 @@ int8_t *alloc_ones_matrix(size_t rows, size_t cols, int8_t *result) {
   }
   for (size_t i = 0; i < rows; i++) {
     for (size_t j = 0; j < cols; j++) {
-      result[i*cols+j] = 0x01 + (i % 2);
+      result[i*cols+j] = 0x01 + 0x10 * (i % 2);
     }
   }
   return result;
@@ -220,6 +264,18 @@ int8_t *alloc_zero_matrix(size_t rows, size_t cols, int8_t *result) {
   for (size_t i = 0; i < rows; i++) {
     for (size_t j = 0; j < cols; j++) {
       result[i*cols+j] = 0x00;
+    }
+  }
+  return result;
+}
+
+int8_t *alloc_incr_matrix(size_t rows, size_t cols, int8_t *result) {
+  if (result == NULL) {
+    result = malloc(sizeof(int8_t) * rows * cols);
+  }
+  for (size_t i = 0; i < rows; i++) {
+    for (size_t j = 0; j < cols; j++) {
+      result[i*cols+j] = i*cols+j;
     }
   }
   return result;
@@ -395,22 +451,22 @@ void app_main() {
   // int8_t v2_1[VECTOR_SIZE] = {1, 1, 1, 1, 1, 1, 1, 1};
 
   int8_t rows = 16;
-  int8_t cols = 2;
-  run_old_test(dst);
-  old_test_no_modification();
+  int8_t cols = 64;
+  //run_old_test(dst);
+  //old_test_no_modification();
 
-  // // Tests with a simple ones matrix and shifts for every 16-byte offset.
-  // int8_t *operand_0 = alloc_ones_matrix(1, cols, 0x86000000);
-  // for (int i = 0; i < (DMA_NUM_COLS - cols); i++) {
-  //   operand_0[cols+i] = 0x00;
-  // }
-  // for (int i = 1; i < 2; i++) {
-  //     int8_t *src_0 = alloc_ones_matrix(rows, cols, 0x85000000 + (i << 4));
-  //     dma_verify_MAC(DMA0, src_0, operand_0, j, rows, dst, "All ones offset test");
-  //     alloc_zero_matrix(rows, cols, src_0);
+  // Tests with a simple ones matrix and shifts for every 16-byte offset.
+  int8_t *operand_0 = alloc_ones_matrix(1, cols, 0x86000000);
+  for (int i = 0; i < (DMA_NUM_COLS - cols); i++) {
+    operand_0[cols+i] = 0x00;
+  }
+  for (int i = 0; i < 16; i++) {
+      int8_t *src_0 = alloc_ones_matrix(rows, cols, 0x85000000 + (i << 4));
+      dma_verify_MAC(DMA0, src_0, operand_0, sizeof(int8_t) * cols, rows, dst, "All ones offset test");
+      alloc_zero_matrix(rows, cols, src_0);
     
-  //   //alloc_zero_matrix(1, cols, operand_0);
-  // }
+    //alloc_zero_matrix(1, cols, operand_0);
+  }
 
 }
 /* USER CODE END PUC */
