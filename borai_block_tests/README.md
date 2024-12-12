@@ -38,7 +38,6 @@ make gdb PORT=3335 BINARY=./build/borai_block_tests/borai_qtdp.elf
 
 ### Observations
 
-Unfortunately, for our purposes, we will not be able to use this block for our demonstration. As evidenced by the `Unordered int8 unsigned values` test, the value is automatically quantized to an int8_t value, which means that a dot product must have a resulting value between [-128, 127] to be correct. Because the V_DOTPROD function automatically passes its value into the requantizer, there is no way to retrieve these lost upper bits. Our matrix multiplication relies upon values that will almost always have this scenario occur, meaning that for our large, dense matrices, the Quantized Transformer Dot Product will output the wrong value for every computation.
+Unfortunately, for our purposes, we will not be able to use this block for our demonstration. As evidenced by the `Unordered int8 unsigned values` test, the value is automatically quantized to an int8_t value, which means that a dot product must have a resulting value between [-128, 127] to be correct. Because the V_DOTPROD function automatically passes its value into the requantizer, there is no way to retrieve these lost upper bits unless a proper scale factor is computed ahead of time. Our matrix multiplication relies upon values that will almost always have this scenario occur, meaning that for our large, dense matrices, the Quantized Transformer Dot Product will output the wrong value for every computation using a simple scale factor of 1, 0.
 
 ## BearlyML'24 DMA Matrix-Vector Multiplication Engine (`dma_mac`)
-
