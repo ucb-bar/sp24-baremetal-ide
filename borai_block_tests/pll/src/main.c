@@ -278,162 +278,6 @@ int8_t *alloc_incr_matrix(size_t rows, size_t cols, int8_t *result) {
   return result;
 }
 
-/* BEGIN OLD STUFF */
-
-#define CACHELINE         64
-#define REGION_SIZE_LINES 16
-#define STRIDE (0.75 * CACHELINE)
-
-__attribute__((aligned(CACHELINE))) int8_t mem1[REGION_SIZE_LINES][CACHELINE / sizeof(int8_t)];
-
-int16_t saturate(int32_t x) {
-    int16_t max = (1 << 15) - 1;
-    int16_t min = -(1 << 15);
-    if (x > max) {
-        return max;
-    } else if (x < min) {
-        return min;
-    } else {
-        return x;
-    }
-}
-
-void run_old_test(int16_t *dst) {
-  int offset = 42;
-  
-  puts("Initializing memory\r");
-  for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
-      for (size_t j = 0; j < CACHELINE/sizeof(int8_t); j++) {
-          mem1[i][j] = i+j;
-      }
-  }
-  
-  int8_t operandReg[sizeof(DMA1->OPERAND_REG)/sizeof(uint8_t)];
-  for (size_t i = 0; i < sizeof(operandReg)/sizeof(uint8_t); i++) {
-      operandReg[i] = (i + 3) * (i & 1 ? -1 : 1);
-  }
-
-  _Static_assert(sizeof(operandReg) == 64, "opreg size");
-
-  // _Static_assert(STRIDE % CACHELINE == 0, "stride not aligned");
-  uint32_t count = REGION_SIZE_LINES * CACHELINE / STRIDE;
-  int16_t expected[sizeof(DMA1->DEST_REG)/sizeof(int16_t)];
-  for (size_t i = 0; i < count; i++) {
-      int32_t sum = 0;
-      for (size_t j = 0; j < sizeof(operandReg)/sizeof(uint8_t) - offset; j++) {
-          sum += (int16_t)operandReg[j] * (int16_t)mem1[(int) (i*STRIDE / CACHELINE)][(int) (i*STRIDE) % CACHELINE + j + offset];
-      }
-      for (size_t j = sizeof(operandReg)/sizeof(uint8_t) - offset; j < sizeof(operandReg)/sizeof(uint8_t); j++) {
-          sum += (int16_t)operandReg[j] * (int16_t)mem1[(int) (i*STRIDE / CACHELINE) + 1][(int) (i*STRIDE) % CACHELINE + j - (sizeof(operandReg)/sizeof(uint8_t) - offset)];
-      }
-      expected[i] = saturate(sum);
-  }
-
-  for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
-        for (size_t j = 0; j < CACHELINE/sizeof(int8_t); j++) {
-            printf("\t%4" PRIx16, mem1[i][j]);
-        }
-        printf("\n");
-    }
-
-
-  for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
-    printf("\t%4" PRIx16 "\r\n", expected[i]);
-  }
-  dma_verify_MAC(DMA0, &mem1[0][offset], &operandReg, STRIDE, count, dst, "Rickety old test");
-
-  for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
-    printf("\t%016" PRIx64 "\r\n", DMA1->DEST_REG[i]);
-  }
-
-}
-
-void old_test_no_modification() {
-
-  int offset = 42;
-    
-    puts("Initializing memory");
-    for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
-        for (size_t j = 0; j < CACHELINE/sizeof(int8_t); j++) {
-            mem1[i][j] = i + j;
-        }
-    }
-    
-    int8_t operandReg[sizeof(DMA1->OPERAND_REG)/sizeof(uint8_t)];
-    for (size_t i = 0; i < sizeof(operandReg)/sizeof(uint8_t); i++) {
-        operandReg[i] = (i + 3) * (i & 1 ? -1 : 1);
-    }
-
-    _Static_assert(sizeof(operandReg) == 64, "opreg size");
-
-    // _Static_assert(STRIDE % CACHELINE == 0, "stride not aligned");
-    uint32_t count = REGION_SIZE_LINES * CACHELINE / STRIDE;
-    int16_t expected[sizeof(DMA1->DEST_REG)/sizeof(int16_t)];
-    for (size_t i = 0; i < count; i++) {
-        int32_t sum = 0;
-        for (size_t j = 0; j < sizeof(operandReg)/sizeof(uint8_t) - offset; j++) {
-            sum += (int16_t)operandReg[j] * (int16_t)mem1[(int) (i*STRIDE / CACHELINE)][(int) (i*STRIDE) % CACHELINE + j + offset];
-        }
-        for (size_t j = sizeof(operandReg)/sizeof(uint8_t) - offset; j < sizeof(operandReg)/sizeof(uint8_t); j++) {
-            sum += (int16_t)operandReg[j] * (int16_t)mem1[(int) (i*STRIDE / CACHELINE) + 1][(int) (i*STRIDE) % CACHELINE + j - (sizeof(operandReg)/sizeof(uint8_t) - offset)];
-        }
-        expected[i] = saturate(sum);
-    }
- 
-    void* src_addr = &mem1[0][offset];
-    printf("src_addr: %p\n", src_addr);
-    uint64_t stride = STRIDE;
-    printf("stride: %ld\n", stride);
-    printf("offset: %d\n", offset);
-
-    puts("Waiting for DMA");
-
-    while (dma_operation_inprogress_and_not_error(DMA1));
-
-    puts("Performing DMA");
-
-    DMA1->SRC_ADDR = src_addr;
-    DMA1->SRCSTRIDE = stride;
-    DMA1->MODE = MODE_MAC;
-    memcpy(DMA1->OPERAND_REG, operandReg, sizeof(operandReg));
-    __asm__ ("" ::: "memory");
-
-    // wait for peripheral to complete
-    DMA1->COUNT = count;
-    while (dma_operation_inprogress_and_not_error(DMA1));
-    for (size_t i = 0; i < count; i++) {
-        if (expected[i] != ((volatile int16_t *)DMA1->DEST_REG)[i]) {
-            printf("Expected %d at index %ld, got %d\r\n", expected[i], i, ((volatile int16_t *)DMA1->DEST_REG)[i]);
-        }
-    }
-    printf("Memory contents:\r\n");
-
-    for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
-        for (size_t j = 0; j < CACHELINE/sizeof(int8_t); j++) {
-            printf("\t%4" PRIx16, mem1[i][j]);
-        }
-        printf("\r\n");
-    }
-
-    printf("Expected output:\r\n");
-
-    for (size_t i = 0; i < 8; i++) {
-        printf("\t%4" PRIx16 "\n", expected[i]);
-    }
-
-    printf("Dumping...\r\n");
-
-    for (size_t i = 0; i < 8; i++) {
-        printf("\t%016" PRIx64 "\r\n", DMA1->DEST_REG[i]);
-    }
-    
-
-    printf("Test complete\r\n");
-
-}
-
-/* END OLD STUFF */
-
 
 void pwm_set_pll_debug(PWM_Type *PWMx, uint32_t idx) {
   // PWM frequency = System clock / 2^pwmscale
@@ -483,8 +327,10 @@ void app_init() {
 
   // Initialize PLL
   PLL_Type* PLL_Inst = PLL;
+  CLOCK_SELECTOR->SEL = 0;
+  PLL->PLLEN = 0;
   PLL->MDIV_RATIO = 1;
-  PLL->RATIO = 3;  // 150MHz
+  PLL->RATIO = 1;  // 150MHz
   PLL->FRACTION = 0;
   PLL->ZDIV0_RATIO = 1;
   PLL->ZDIV1_RATIO = 1;
@@ -513,8 +359,8 @@ void app_main() {
   for (int i = 0; i < (DMA_NUM_COLS - cols); i++) {
     operand_0[cols+i] = 0x00;
   }
-  for (int i = 0; i < 16; i++) {
-      int8_t *src_0 = alloc_ones_matrix(rows, cols, 0x85000000 + (i));
+  for (int i = 0; i < 1; i++) {
+      int8_t *src_0 = alloc_ones_matrix(rows, cols, 0x85000000);
       dma_verify_MAC(DMA0, src_0, operand_0, sizeof(int8_t) * cols, rows, dst, "All ones offset test");
       alloc_zero_matrix(rows, cols, src_0);
     
@@ -546,6 +392,8 @@ int main(int argc, char **argv) {
   /* Initialize all configured peripherals */  
   /* USER CODE BEGIN Init */
   app_init();
+  
+  puts("We are here...\r\n");
   /* USER CODE END Init */
 
   /* Infinite loop */
