@@ -80,24 +80,20 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN PUC */
-
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 DMA_Status dma_get_MAC_result_offset_aware(DMA_Type* DMAX, int16_t* dst, uint32_t count) {
   while (dma_operation_inprogress_and_not_error(DMAX));
   if (count > 32)
     count = 32;
   
   if (dma_operation_complete(DMAX)){
-    // Copy count * 2^4 (count * 16 byte vals)
-    //memcpy(dst, (int8_t*)(&DMAX->DEST_REG) - (uint8_t)(((uint64_t)DMAX->SRC_ADDR & 0x000000F0U) >> 4), count << 4);
-    // int64_t* op = (int64_t *) operand;
-    // int64_t* reg = (int64_t *) DMAX->OPERAND_REG;
-    uint8_t shift_correction_factor = (uint8_t)(((uint64_t)DMAX->SRC_ADDR & 0x000000F0U) >> 4);
+    volatile uint8_t offset_16_2lsb = ((uint8_t)DMAX->SRC_ADDR & 0x00000030U) >> 4;
+    uint8_t shift_correction_factor = offset_16_2lsb - (offset_16_2lsb >> 1);
+    float strange_division_scale = 1.0 + 0.5 * (offset_16_2lsb == 0b10);
     size_t i = 0;
-    for (; i < count/4*4; i+=4)
-      *(int64_t*)(dst + i) = *(int64_t*)(DMAX->DEST_REG + i) >> shift_correction_factor;
-      //*(int64_t*)(dst + i + 4) = *(int64_t*)(DMAX->DEST_REG + i + 4) >> shift_correction_factor;
     for (; i < count; i++)
-      dst[i] = ((int16_t *) DMAX->DEST_REG)[i] >> shift_correction_factor;
+      *(int16_t*)(dst + i) = ((*(int16_t*)(DMAX->DEST_REG + i)) >> shift_correction_factor) / strange_division_scale;
     return DMA_OK;
   }
   else {
@@ -106,6 +102,7 @@ DMA_Status dma_get_MAC_result_offset_aware(DMA_Type* DMAX, int16_t* dst, uint32_
     return get_status(DMAX);
   }
 }
+#pragma GCC pop_options
 
 
 /**
