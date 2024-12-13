@@ -483,7 +483,6 @@ void app_init() {
 
 
   // Initialize PLL
-  PLL_Type* PLL_Inst = PLL;
   CLOCK_SELECTOR->SEL = 0;
   PLL->PLLEN = 0;
   PLL->MDIV_RATIO = 1;
