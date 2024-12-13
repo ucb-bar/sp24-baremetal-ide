@@ -435,8 +435,64 @@ void old_test_no_modification() {
 /* END OLD STUFF */
 
 
+void pwm_set_pll_debug(PWM_Type *PWMx, uint32_t idx) {
+  // PWM frequency = System clock / 2^pwmscale
+  uint16_t pwmscale = (int) (log2_bitwise( (int) (((double) SYS_CLK_FREQ / ((double) 1525.90218967 * 65535))))) + 1; //65535 = 2^16-1
+  pwm_set_scale(PWMx, pwmscale);
+
+  uint16_t cmp0 = ((double) SYS_CLK_FREQ / (double) 1525.90218967) / (1<<pwmscale);
+  pwm_set_compare_value(PWMx, 0, cmp0);
+}
+
 void app_init() {
-  // torch::executor::runtime_init();
+  
+  PWM_InitType PWM_init_config;
+  PWM_init_config.pwmscale = 0;
+  PWM_init_config.RESERVED = 0;
+  PWM_init_config.pwmsticky = 0;
+  PWM_init_config.pwmzerocmp = 0;
+  PWM_init_config.pwmdeglitch = 0;
+  PWM_init_config.RESERVED1 = 0;
+  PWM_init_config.pwmenalways = 0;
+  PWM_init_config.pwmenoneshot = 0;
+  PWM_init_config.RESERVED2 = 0;
+  PWM_init_config.pwmcmp0center = 0;
+  PWM_init_config.pwmcmp1center = 0;
+  PWM_init_config.pwmcmp2center = 0;
+  PWM_init_config.pwmcmp3center = 0;
+  PWM_init_config.RESERVED3 = 0;
+  PWM_init_config.pwmcmp0gang = 0;
+  PWM_init_config.pwmcmp1gang = 0;
+  PWM_init_config.pwmcmp2gang = 0;
+  PWM_init_config.pwmcmp3gang = 0;
+  PWM_init_config.pwmcmp0ip = 0;
+  PWM_init_config.pwmcmp1ip = 0;
+  PWM_init_config.pwmcmp2ip = 0;
+  PWM_init_config.pwmcmp3ip = 0;
+  pwm_init(PWM_BASE, &PWM_init_config);
+  *((uint32_t*) (PWM_BASE+0x08)) = 0;
+
+  // Initialize PWM
+  pwm_enable(PWM_BASE);
+  //pwm_set_frequency(PWM_BASE, 0, 1525.9);
+  pwm_set_pll_debug(PWM_BASE, 0);
+  //pwm_get_frequency(PWM_BASE, 0);
+  //pwm_set_duty_cycle(PWM_BASE, 0, 1, 1000, 0);
+  pwm_set_duty_cycle(PWM_BASE, 1, 50, 1000, 0);
+
+
+  // Initialize PLL
+  PLL_Type* PLL_Inst = PLL;
+  PLL->MDIV_RATIO = 1;
+  PLL->RATIO = 3;  // 350MHz
+  PLL->FRACTION = 0;
+  PLL->ZDIV0_RATIO = 1;
+  PLL->ZDIV1_RATIO = 1;
+  PLL->LDO_ENABLE = 1;
+  PLL->PLLEN = 1;
+  PLL->POWERGOOD_VNN = 1;
+  PLL->PLLFWEN_B = 1;
+  CLOCK_SELECTOR->SEL = 1; // Switch to PLL
 }
 
 void app_main() {
@@ -476,6 +532,7 @@ int main(int argc, char **argv) {
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Configure the system clock */
+  
   /* Configure the system clock */
   
   /* USER CODE BEGIN SysInit */
