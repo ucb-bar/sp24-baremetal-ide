@@ -487,7 +487,7 @@ void app_init() {
   CLOCK_SELECTOR->SEL = 0;
   PLL->PLLEN = 0;
   PLL->MDIV_RATIO = 1;
-  PLL->RATIO = 1;  // 150MHz
+  PLL->RATIO = 10;  // 500MHz
   PLL->FRACTION = 0;
   PLL->ZDIV0_RATIO = 1;
   PLL->ZDIV1_RATIO = 1;
@@ -538,16 +538,18 @@ int main(int argc, char **argv) {
   /* Configure the system clock */
   
   /* USER CODE BEGIN SysInit */
-  UART_InitType UART_init_config;
-  UART_init_config.baudrate = 115200;
-  UART_init_config.mode = UART_MODE_TX_RX;
-  UART_init_config.stopbits = UART_STOPBITS_2;
-  uart_init(UART0, &UART_init_config);
+  
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */  
   /* USER CODE BEGIN Init */
   app_init();
+  UART_InitType UART_init_config;
+  UART_init_config.baudrate = 115200;
+  UART_init_config.mode = UART_MODE_TX_RX;
+  UART_init_config.stopbits = UART_STOPBITS_2;
+  uart_init(UART0, &UART_init_config);
+  puts("test test test YOU SHOULD SEE ME");
   /* USER CODE END Init */
 
   /* Infinite loop */
