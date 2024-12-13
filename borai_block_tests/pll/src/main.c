@@ -484,7 +484,7 @@ void app_init() {
   // Initialize PLL
   PLL_Type* PLL_Inst = PLL;
   PLL->MDIV_RATIO = 1;
-  PLL->RATIO = 3;  // 350MHz
+  PLL->RATIO = 3;  // 150MHz
   PLL->FRACTION = 0;
   PLL->ZDIV0_RATIO = 1;
   PLL->ZDIV1_RATIO = 1;
