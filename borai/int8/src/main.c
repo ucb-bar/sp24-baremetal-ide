@@ -32,7 +32,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "chip_config.h"
+
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -46,7 +46,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ENABLE_BORAVOICE_INTEG
+// #define ENABLE_BORAVOICE_INTEG
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -334,7 +334,7 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
   printf("\tQuery Head Count:\t%d\r\n", config->n_heads);
   printf("\tKey/Value Head Count:\t%d\r\n", config->n_kv_heads);
   printf("\tByte-Level Vocabulary Size:\t%d\r\n", config->vocab_size);
-  printf("\tMaximum Sequency Length:\t%d\r\n", config->seq_len);
+  printf("\tMaximum Sequence Length:\t%d\r\n", config->seq_len);
 
   // Check shared classifier byte
   uint8_t shared_classifier = *((uint8_t*)(WEIGHTS + cumulative_offset));
@@ -351,16 +351,23 @@ void read_checkpoint_from_header(Config* config, TransformerWeights* weights, fl
   printf("\tGroup Size:\t%d\r\n", GS);
 
   printf("Accelerator Status:\r\n");
-  printf("\tDMA MatVec:\t");
+  printf("\tBearly24 DMA MatVec:\t");
 #ifdef ENABLE_DMA_MATVEC
   printf("Enabled\r\n");
 #else
   printf("Disabled\r\n");
 #endif
 
-  printf("\tQTrans DotProd:\t");
+  printf("\tBearly24 QTrans DotProd:\t");
 #ifdef ENABLE_QT_DOTPROD
   GS_QTDP_BOUND = GS / 8 * 8;
+  printf("Enabled\r\n");
+#else
+  printf("Disabled\r\n");
+#endif
+
+  printf("\tDSP'24 Saturn-V Vector:\t");
+#ifdef ENABLE_SATURNV_VEC
   printf("Enabled\r\n");
 #else
   printf("Disabled\r\n");
@@ -1300,7 +1307,7 @@ void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, 
         printf("BENCHMARK: Seconds per token:\t%lu\r\n", (unsigned long)((end-start)/MTIME_FREQ)/(pos-1));
         printf("BENCHMARK: Seconds per token (float):\t%f\r\n", ((float)(end-start)/(float)MTIME_FREQ)/(float)(pos-1));
 
-        printf("BENCHMARK: MTIME Frequency:\t%lu\r\n", MTIME_FREQ);
+        printf("BENCHMARK: MTIME Frequency:\t%u\r\n", MTIME_FREQ);
         printf("STDERR: achieved tok/s:\t%f\r\n", 1/((float)(end-start)/(float)MTIME_FREQ)/(float)(pos-1));
     }
 
@@ -1368,6 +1375,8 @@ void chat(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler,
 
     // start the main loop
     int8_t user_turn = 1; // user starts
+    unsigned long start = 0;  // used to time our code, only initialized after first iteration
+
     int next;        // will store the next token in the sequence
     int token;       // stores the current token to feed into the transformer
     int prev_token;
@@ -1419,27 +1428,51 @@ void chat(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler,
             token = next;
         }
         // EOS (=2) token ends the Assistant turn
-        if (token == 2) { user_turn = 1; }
+        // if (token == 2) {
+        //     unsigned long end = READ_CSR("mcycle");
+        //     printf("\r\nBENCHMARK: Total cycles: %lu\r\n", end-start);
+        //     printf("BENCHMARK: Total tokens:\t%d\r\n", pos-1);
+        //     printf("BENCHMARK: Cycles per token:\t%lu\r\n", (unsigned long)(end-start)/(pos-1));
+        //     printf("BENCHMARK: Seconds per token:\t%lu\r\n", (unsigned long)((end-start)/SYS_CLK_FREQ)/(pos-1));
+        //     printf("BENCHMARK: Seconds per token (float):\t%f\r\n", ((float)(end-start)/(float)SYS_CLK_FREQ)/(float)(pos-1));
+
+        //     printf("BENCHMARK: MTIME Frequency:\t%lu\r\n", MTIME_FREQ);
+        //     user_turn = 1;
+        //     start = 0;
+        // }
 
         // forward the transformer to get logits for the next token
         float* logits = forward(transformer, token, pos);
         next = sample(sampler, logits);
         pos++;
-
+        
         if (user_idx >= num_prompt_tokens && next != 2) {
             // the Assistant is responding, so print its output
             char* piece = decode(tokenizer, token, next);
             safe_printf(piece); // same as printf("%s", piece), but skips "unsafe" bytes
             fflush(stdout);
+            if (start == 0) { start = READ_CSR("mcycle"); }
         }
         if (next == 2) { printf("\r\n"); }
     }
+
+    unsigned long end = READ_CSR("mcycle");
+    printf("\r\nBENCHMARK: Total cycles: %lu\r\n", end-start);
+    printf("BENCHMARK: Total tokens:\t%d\r\n", pos-1);
+    printf("BENCHMARK: Cycles per token:\t%lu\r\n", (unsigned long)(end-start)/(pos-1));
+    printf("BENCHMARK: Seconds per token:\t%lu\r\n", (unsigned long)((end-start)/SYS_CLK_FREQ)/(pos-1));
+    printf("BENCHMARK: Seconds per token (float):\t%f\r\n", ((float)(end-start)/(float)SYS_CLK_FREQ)/(float)(pos-1));
+
+    printf("BENCHMARK: MTIME Frequency:\t%u\r\n", MTIME_FREQ);
+    user_turn = 1;
+    start = 0;
     printf("\r\n");
     free(prompt_tokens);
 }
 
 
 void app_main() {
+  printf("%c%c%c%c%c[0;0H",0x1B,0x5B,0x32,0x4A,0x1B);
   uint64_t mhartid = READ_CSR("mhartid");
   printf("Started BorAIq (Int8 Quantized) Inference Engine on hart ID %lu\r\n", mhartid);
 
@@ -1449,7 +1482,7 @@ void app_main() {
   int steps = 128;            // number of steps to run for (default 512)
   char *prompt = "If you";        // prompt string
   unsigned long long rng_seed = CLINT->MTIME; // seed rng with time by default
-  GenMode mode = GENERATE;    // generate|chat
+  GenMode mode = CHAT;    // generate|chat
   char *system_prompt = NULL; // the (optional) system prompt to use in chat mode (I have it set up to ask screen if not given)
 
   // Parameter validation and overrides
@@ -1496,6 +1529,20 @@ void app_main() {
 int main(int argc, char **argv) {
   /* MCU Configuration--------------------------------------------------------*/
   
+  /* Initialize PLL configuration */
+  CLOCK_SELECTOR->SEL = 0;
+  PLL->PLLEN = 0;
+  PLL->MDIV_RATIO = 1;
+  PLL->RATIO = 15;  // 750MHz
+  PLL->FRACTION = 0;
+  PLL->ZDIV0_RATIO = 1;
+  PLL->ZDIV1_RATIO = 1;
+  PLL->LDO_ENABLE = 1;
+  PLL->PLLEN = 1;
+  PLL->POWERGOOD_VNN = 1;
+  PLL->PLLFWEN_B = 1;
+  CLOCK_SELECTOR->SEL = 1; // Switch to PLL
+
   /* USER CODE BEGIN SysInit */
   // Initialize UART0 for Serial Monitor
   UART_InitType UART0_init_config;

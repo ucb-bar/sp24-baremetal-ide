@@ -18,17 +18,23 @@ extern "C" {
 /**
  * Enables the Quantized Transformer V_DOTPROD function.
  */
-#define ENABLE_QT_DOTPROD
+// #define ENABLE_QT_DOTPROD
 
 /**
  * Enables the DMA MatVec functionality to speed up matmul computations through DMA0.
  */
-//#define ENABLE_DMA_MATVEC
+// #define ENABLE_DMA_MATVEC
 #define DMA_NUM_ROWS 16
 #define DMA_NUM_COLS 64
 
+/**
+ * Enables compatibility and acceleration using the DSP'24 Saturn-V vector-enabled cores.
+ */
+#define ENABLE_SATURNV_VEC
+
 
 // Accelerator library inclusions //
+#include "chip_config.h"
 #include "riscv.h"
 
 #ifdef ENABLE_QT_DOTPROD
@@ -38,6 +44,12 @@ extern "C" {
 #ifdef ENABLE_DMA_MATVEC
 #include "hal_dma.h"
 #endif
+
+#ifdef ENABLE_SATURNV_VEC
+
+#endif
+
+#include "ll_pll.h"
 
 #ifdef __cplusplus
 }
