@@ -1,0 +1,17 @@
+# **************************************************
+# Quartus Prime Version 23.4.0
+# Process ID 2697713
+# Start logging UI actions
+# Fri Dec 6 10:35:57 2024
+# **************************************************
+[Fri Dec  6 10:37:20 2024] [Action triggered] Window title: 'Quartus Prime Pro Edition - /tools/C/tedkim7/sp24-tapeout - Agilex_SOM [*]' | P&rocessing > 'Compilation Dashboard' was pressed
+[Fri Dec  6 10:37:35 2024] [Action triggered] Window title: 'Quartus Prime Pro Edition - /tools/C/tedkim7/sp24-tapeout - Agilex_SOM [*]' | P&rocessing > 'Start &Compilation' was pressed
+[Fri Dec  6 10:39:32 2024] [Action triggered] Window title: 'Quartus Prime Pro Edition - /tools/C/tedkim7/sp24-tapeout - Agilex_SOM [*]' | &Tools > '&Programmer' was pressed
+[Fri Dec  6 10:40:05 2024] Window title: 'Programmer - /tools/C/tedkim7/sp24-tapeout - Agilex_SOM [*]' | QCheckBox '' was checked
+[Fri Dec  6 10:40:38 2024] Window title: 'Hardware Setup' | QCheckBox 'Auto-adjust frequency at chain scanning' was checked
+[Fri Dec  6 10:40:38 2024] Window title: 'Hardware Setup' | combo box changed to: 'Apollo Agilex [1-2.1]'
+[Fri Dec  6 10:40:41 2024] Window title: 'Hardware Setup' | QPushButton '&Close' pressed!
+[Fri Dec  6 10:40:43 2024] Window title: 'Programmer - /tools/C/tedkim7/sp24-tapeout - Agilex_SOM - [Agilex_SOM.cdf][*]' | QPushButton 'Start' pressed!
+[Fri Dec  6 10:53:39 2024] Window title: 'Quartus Prime' | QPushButton '&Yes' pressed!
+[Fri Dec  6 10:53:43 2024] Window title: 'Quartus Prime' | QPushButton '&No' pressed!
+[Fri Dec  6 10:53:45 2024] [Action triggered] Window title: 'Quartus Prime Pro Edition [*]' | &Help > 'Home' was pressed

@@ -26,8 +26,8 @@
 // Constants
 #define MMIO_BASE   0x08808000
 #define CACHELINE           64
-#define WIDTH               64
-#define HEIGHT              64
+#define WIDTH               16
+#define HEIGHT              16
 
 
 
@@ -43,10 +43,10 @@ void printImage(void *image, int height, int width, DataType type) {
         for (int x = 0; x < width; ++x) {
             if (type == INT8) {
                 // For Printing Input Image 
-                printf("%3d ", ((int8_t*)image)[y * width + x]);
+                printf("\r\n%3d ", ((int8_t*)image)[y * width + x]);
             } else if (type == INT16) {
                 // For Printing Convolution Output / Expected Output 
-                printf("%5hd ", ((int16_t*)image)[y * width + x]);
+                printf("\r\n%5hd ", ((int16_t*)image)[y * width + x]);
             }
         }
         printf("\n");

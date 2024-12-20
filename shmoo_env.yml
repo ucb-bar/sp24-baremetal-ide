@@ -1,4 +1,4 @@
-name: /bwrcq/C/tedkim7/sp24-Baremetal-IDE/shmoo_env
+name: ./shmoo_env
 channels:
   - conda-forge
 dependencies:

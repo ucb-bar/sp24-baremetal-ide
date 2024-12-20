@@ -1,0 +1,4 @@
+Freq: 20, Voltage: 0.55, Output: Valid
+Freq: 20, Voltage: 0.6, Output: Valid
+Freq: 40, Voltage: 0.55, Output: Valid
+Freq: 40, Voltage: 0.6, Output: Valid

@@ -41,57 +41,49 @@ int16_t saturate(int32_t x) {
     }
 }
 
-
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN PFP */
-
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN PUC */
-
-
-// void app_init() {
-//   // torch::executor::runtime_init();
-// }
-
+void pll_setup() {
+  printf("PLL Test\r\n");
+  reg_write8(0x130000, 0x0);          // reset clock selector
+  PLL->LDO_ENABLE = 0x0;
+  PLL->PLLEN = 0x0;
+  PLL->MDIV_RATIO = 0x1;
+  printf("Set MDIV_RATIO\r\n");
+  PLL->RATIO = 0x6;       // 300MHz?
+  printf("Set RATIO\r\n");
+  PLL->FRACTION = 0x0;
+  printf("Set FRACTION\r\n");
+  PLL->VCODIV_RATIO = 0x0;
+  printf("Set VCODIV_RATIO\r\n");
+  PLL->ZDIV0_RATIO = 0x1;
+  printf("Set ZDIV0_RATIO\r\n");
+  PLL->ZDIV0_RATIO_P5 = 0x0;
+  printf("Set ZDIV0_RATIO_P5\r\n");
+  PLL->ZDIV1_RATIO = 0x1;
+  printf("Set ZDIV1_RATIO\r\n");
+  PLL->ZDIV1_RATIO_P5 = 0x0;
+  printf("Set ZDIV1_RATIO_P5\r\n");
+  sleep(1);
+  printf("slept\r\n");
+  PLL->LDO_ENABLE = 0x1;
+  printf("Set LDO_EN\r\n");
+  PLL->POWERGOOD_VNN = 0x1;
+  PLL->PLLEN = 0x1;
+  printf("Set PLLEN\r\n");
+  sleep(1);
+  // // printf("PLLEN: %d\r\n", reg_read8(0x10000060));
+  // // Write the index of the clock you want to use to the base address
+  // // Ref: https://bwrcrepo.eecs.berkeley.edu/ee290c_ee194_intech22/sp24-chips/-/blob/main/generators/chipyard/src/main/scala/BearlyChipTop.scala#L52
+  printf("PLL Select\r\n");
+  PLL->PLLFWEN_B = 0x1;
+  reg_write8(0x130000, 0x1);
+}
 
 
 void app_main() {
 
-// TODO: Define instructions properly based on our new inst
-
-/* This test is a sanity test and simply tests multiplication of 2 values in the whole matrix*/
     int offset = 15;
 
-    puts("\r\nInitializing memory");
+    // puts("\r\nInitializing memory");
     for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
         for (size_t j = 0; j < CACHELINE/sizeof(int8_t); j++) {
             mem1[i][j] = i + j;
@@ -120,16 +112,16 @@ void app_main() {
     }
  
     void* src_addr = &mem1[0][offset];
-    printf("\r\nsrc_addr: %p\n", src_addr);
+    // printf("\r\nsrc_addr: %p\n", src_addr);
     uint64_t stride = STRIDE;
-    printf("\r\nstride: %ld\n", stride);
-    printf("\r\noffset: %d\n", offset);
+    // printf("\r\nstride: %ld\n", stride);
+    // printf("\r\noffset: %d\n", offset);
 
-    puts("\r\nWaiting for DMA");
+    // puts("\r\nWaiting for DMA");
 
     while (DMA1->status.inProgress); // wait for ready
 
-    puts("\r\nPerforming DMA");
+    // puts("\r\nPerforming DMA");
 
     DMA1->srcAddr = src_addr;
     DMA1->srcStride = stride;
@@ -148,34 +140,36 @@ void app_main() {
     }
     uint64_t cpu_end_cycles = READ_CSR("mcycle");
     for (size_t i = 0; i < count; i++) {
-        if (expected[i] != ((volatile int16_t *)DMA1->destReg)[i]) {
-            printf("\r\nExpected %d at index %ld, got %d\n", expected[i], i, ((volatile int16_t *)DMA1->destReg)[i]);
-        }
+        // if (expected[i] != ((volatile int16_t *)DMA1->destReg)[i]) {
+        //     printf("\r\nExpected %d at index %ld, got %d\n", expected[i], i, ((volatile int16_t *)DMA1->destReg)[i]);
+        // }
+        printf("%d ", ((volatile int16_t *)DMA1->destReg)[i]);
     }
-    printf("\r\nMemory contents:\n");
+    printf("\r\n");
+    // printf("\r\nMemory contents:\n");
 
-    for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
-        for (size_t j = 0; j < CACHELINE/sizeof(int8_t); j++) {
-            printf("\r\n\t%4" PRIx16, mem1[i][j]);
-        }
-        printf("\r\n\n");
-    }
+    // for (size_t i = 0; i < REGION_SIZE_LINES; i++) {
+    //     for (size_t j = 0; j < CACHELINE/sizeof(int8_t); j++) {
+    //         printf("\r\n\t%4" PRIx16, mem1[i][j]);
+    //     }
+    //     printf("\r\n\n");
+    // }
 
-    printf("\r\nExpected output:\n");
+    // printf("\r\nExpected output:\n");
 
-    for (size_t i = 0; i < 8; i++) {
-        printf("\r\n\t%4" PRIx16 "\n", expected[i]);
-    }
+    // for (size_t i = 0; i < 8; i++) {
+    //     printf("\r\n\t%4" PRIx16 "\n", expected[i]);
+    // }
     
-    printf("\r\nDumping...\n");
+    // printf("\r\nDumping...\n");
 
-    for (size_t i = 0; i < 8; i++) {
-        printf("\r\n\t%016" PRIx64 "\n", DMA1->destReg[i]);
-    }
+    // for (size_t i = 0; i < 8; i++) {
+    //     printf("\r\n\t%016" PRIx64 "\n", DMA1->destReg[i]);
+    // }
     
 
-    puts("\r\nTest complete");
-    printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
+    // puts("\r\nTest complete");
+    // printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
 
 
 }
@@ -207,6 +201,8 @@ int main(int argc, char **argv) {
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+//   pll_setup();
   while (1) {
     app_main();
     return 0;

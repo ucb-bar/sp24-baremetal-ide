@@ -10,16 +10,18 @@ extern "C" {
 #include "spi.h"
 #include "i2c.h"
 #include "uart.h"
+#include "pll.h"
+#include "freq.h"
 
 
-// ================================
-//  System Clock
-// ================================
-// system clock frequency in Hz
-#define SYS_CLK_FREQ   16000000
+// // ================================
+// //  System Clock
+// // ================================
+// // system clock frequency in Hz
+// #define SYS_CLK_FREQ   16000000
 
-// CLINT time base frequency in Hz
-#define MTIME_FREQ     16000000
+// // CLINT time base frequency in Hz
+// #define MTIME_FREQ     16000000
 
 
 // ================================
@@ -35,6 +37,7 @@ extern "C" {
 #define UART_BASE               0x10020000U
 #define QSPI_FLASH_BASE         0x20000000U
 #define DRAM_BASE               0x80000000U
+#define PLL_BASE                0x00140000U
 
 /* Peripheral Pointer Definition */
 #define UART0_BASE              (UART_BASE)

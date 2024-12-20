@@ -161,11 +161,11 @@ void app_main() {
 
     int8_t *csr_ptr = CSR[0];
 
-    int32_t mtime_start = clint_get_time(&CLINT);
+    int32_t mtime_start = clint_get_time(CLINT);
 
     spMac(a_ptr, 16, b_ptr, 16, c_ptr, 16, csr_ptr);
 
-    int32_t mtime_end = clint_get_time(&CLINT);
+    int32_t mtime_end = clint_get_time(CLINT);
 
     int32_t cycle_count = mtime_end - mtime_start;
 

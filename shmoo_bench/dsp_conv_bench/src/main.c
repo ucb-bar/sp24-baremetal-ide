@@ -24,6 +24,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <time.h>
 
 #define BASE_ADDR 0x08800000
 
@@ -35,6 +36,26 @@
 #define DILATION_ADDR   0x0880007C
 #define INPUT_TYPE_ADDR 0x0880008E
 #define RESET_ADDR      0x0880008E
+
+void pll_setup() {
+  printf("PLL Test\r\n");
+  CLOCK_SELECTOR->SEL = 0;
+  PLL->PLLEN = 0;
+  PLL->MDIV_RATIO = 1;
+  PLL->RATIO = 10;  // 750MHz
+  PLL->FRACTION = 0;
+  PLL->ZDIV0_RATIO = 1;
+  PLL->ZDIV1_RATIO = 1;
+  PLL->LDO_ENABLE = 1;
+  PLL->PLLEN = 1;
+  PLL->POWERGOOD_VNN = 1;
+  PLL->PLLFWEN_B = 1;
+  CLOCK_SELECTOR->SEL = 1; // Switch to PLL
+  // // printf("PLLEN: %d\r\n", reg_read8(0x10000060));
+  // // Write the index of the clock you want to use to the base address
+  // // Ref: https://bwrcrepo.eecs.berkeley.edu/ee290c_ee194_intech22/sp24-chips/-/blob/main/generators/chipyard/src/main/scala/BearlyChipTop.scala#L52
+  printf("clock en\r\n");
+}
 
 void app_main() {
 
@@ -49,17 +70,17 @@ void app_main() {
     uint16_t in_kernel[8] = {0x4000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}; // {2, 0, 0, 0, 0, 0, 0, 0} in FP16              
 
     puts("\r\nSetting values of MMIO registers");
-    set_conv_params(16, 1, ((uint64_t*) in_kernel));         // &in_kernel?             
+    set_conv_params(16, 1, ((uint64_t*) in_kernel));                  
     write_conv_dma(0, 16, in_arr);
 
     uint64_t cpu_start_cycles = READ_CSR("mcycle");
     puts("\r\nStarting Convolution");
-    asm volatile ("fence");
+    // asm volatile ("fence");
     start_conv();
 
     uint64_t cpu_end_cycles = READ_CSR("mcycle");
 
-    asm volatile ("fence");
+    // asm volatile ("fence");
 
     puts("\r\nWaiting for convolution to complete");
     
@@ -111,6 +132,7 @@ int main(int argc, char **argv) {
   /* Configure the system clock */
   
   /* USER CODE BEGIN SysInit */
+  pll_setup();
   UART_InitType UART_init_config;
   UART_init_config.baudrate = 115200;
   UART_init_config.mode = UART_MODE_TX_RX;
@@ -118,41 +140,7 @@ int main(int argc, char **argv) {
   uart_init(UART0, &UART_init_config);
   /* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */  
-  /* USER CODE BEGIN Init */
-  // app_init();
-  /* USER CODE END Init */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1) {
-
-    // adjust PLL? verify that PLL is active too
-    // clk_in_ref = 100MHz
-    // uint8_t mdiv_ratio = reg_read8(0x10000074);
-    // reg_write8(0x10000074, (mdiv_ratio & 0xFC) | 0x1);        // mdiv_ratio: lower two bits set to 1
-
-    // uint16_t ratio_integer = reg_read16(0x1000006C);
-    // reg_write16(0x1000006C, ratio_integer & 0xFC00);          // ratio_integer: lower ten bits set to 0
-
-    // // For 0.5, set ratio_fractional to 8388608 = 0x800000
-    // uint32_t ratio_fractional = reg_read32(0x10000070);
-    // reg_write32(0x10000070, ratio_fractional & 0xFF000000);   // ratio_fractional: lower twenty-four bits set to 0
-
-    // uint8_t post_vco_div = reg_read8(0x10000088);
-    // reg_write8(0x10000088, post_vco_div & 0xFC);              // post_vco_div: lower two bits set to 0
-
-    // uint16_t zdiv0_ratio = reg_read16(0x10000078);
-    // reg_write16(0x10000078, (zdiv0_ratio & 0xFC00) | 0x1);    // zdiv0_ratio: lower ten bits set to 1
-
-    // uint8_t zdiv0_ratio_p5 = reg_read8(0x1000007C);
-    // reg_write8(0x1000007C, zdiv0_ratio_p5 & 0xFE)             // zdiv0_ratio_p5: lower bit set to 0
-
-    // uint16_t zdiv1_ratio = reg_read16(0x10000080);
-    // reg_write16(0x10000078, (zdiv0_ratio & 0xFC00) | 0x1);    // zdiv0_ratio: lower ten bits set to 1
-
-    // uint8_t zdiv1_ratio_p5 = reg_read8(0x10000084);
-    // reg_write8(0x1000007C, zdiv0_ratio_p5 & 0xFE);            // zdiv0_ratio_p5: lower bit set to 0
 
     app_main();
 
@@ -160,6 +148,8 @@ int main(int argc, char **argv) {
   }
   /* USER CODE END WHILE */
 }
+
+
 
 /*
  * Main function for secondary harts
