@@ -38,11 +38,10 @@
 #define RESET_ADDR      0x0880008E
 
 void pll_setup() {
-  printf("PLL Test\r\n");
   CLOCK_SELECTOR->SEL = 0;
   PLL->PLLEN = 0;
   PLL->MDIV_RATIO = 1;
-  PLL->RATIO = 10;  // 750MHz
+  // PLL->RATIO = 10;  // 750MHz
   PLL->FRACTION = 0;
   PLL->ZDIV0_RATIO = 1;
   PLL->ZDIV1_RATIO = 1;
@@ -54,12 +53,11 @@ void pll_setup() {
   // // printf("PLLEN: %d\r\n", reg_read8(0x10000060));
   // // Write the index of the clock you want to use to the base address
   // // Ref: https://bwrcrepo.eecs.berkeley.edu/ee290c_ee194_intech22/sp24-chips/-/blob/main/generators/chipyard/src/main/scala/BearlyChipTop.scala#L52
-  printf("clock en\r\n");
 }
 
 void app_main() {
 
-    puts("\r\nStarting test");
+    // puts("\r\nStarting test");
     reg_write8(RESET_ADDR, 1);
 
     // https://bwrcrepo.eecs.berkeley.edu/ee290c_ee194_intech22/sp24-chips/-/wikis/digital/dsp24/Programming-Interfaces#convolution-accelerator
@@ -69,12 +67,12 @@ void app_main() {
     uint16_t in_dilation[1] = {1};
     uint16_t in_kernel[8] = {0x4000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}; // {2, 0, 0, 0, 0, 0, 0, 0} in FP16              
 
-    puts("\r\nSetting values of MMIO registers");
+    // puts("\r\nSetting values of MMIO registers");
     set_conv_params(16, 1, ((uint64_t*) in_kernel));                  
     write_conv_dma(0, 16, in_arr);
 
     uint64_t cpu_start_cycles = READ_CSR("mcycle");
-    puts("\r\nStarting Convolution");
+    // puts("\r\nStarting Convolution");
     // asm volatile ("fence");
     start_conv();
 
@@ -82,40 +80,41 @@ void app_main() {
 
     // asm volatile ("fence");
 
-    puts("\r\nWaiting for convolution to complete");
+    // puts("\r\nWaiting for convolution to complete");
     
-    printf("\r\nInput (INT8): ");
-    for (int i = 0; i < 16; i++) {
-        printf("%d ", in_arr[i]);
-    }
+    // printf("\r\nInput (INT8): ");
+    // for (int i = 0; i < 16; i++) {
+    //     printf("%d ", in_arr[i]);
+    // }
 
     uint16_t test_out[32];
     read_conv_dma(0, 16, ((uint64_t*) test_out));
-    printf("\r\nTest Output (FP16 binary): ");
+    // printf("\r\nTest Output (FP16 binary): ");
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            printf("0x%"PRIx64" ", test_out[i*4 + j]);
+            printf("%"PRIx64" ", test_out[i*4 + j]);
         }
     }
+    printf("\r\n");
 
     uint16_t ref_out[32];
     for (int i = 0; i < 16; i++) {
         ref_out[i] = f16_from_int((int32_t) (in_arr[i] * 2));
     }
-    printf("\r\nReference Output (FP16 binary): ");
-    for (int i = 0; i < 16; i++) {
-        printf("%#x ", ref_out[i]);
-    }
-    printf("\r\n");
+    // printf("\r\nReference Output (FP16 binary): ");
+    // for (int i = 0; i < 16; i++) {
+    //     printf("%#x ", ref_out[i]);
+    // }
+    // printf("\r\n");
 
-    if (memcmp(test_out, ref_out, 16) == 0) {
-        printf("\r\n[TEST PASSED]: Test Output matches Reference Output.");
-        printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
-    } else {
-        printf("\r\n[TEST FAILED]: Test Output does not match Reference Output.");
-        printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
-    }
-    printf("\r\n\r\n");
+    // if (memcmp(test_out, ref_out, 16) == 0) {
+    //     printf("\r\n[TEST PASSED]: Test Output matches Reference Output.");
+    //     printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
+    // } else {
+    //     printf("\r\n[TEST FAILED]: Test Output does not match Reference Output.");
+    //     printf("\r\nmcycle: %llu", cpu_end_cycles - cpu_start_cycles);
+    // }
+    // printf("\r\n\r\n");
 
 }
 

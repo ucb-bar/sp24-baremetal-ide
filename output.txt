@@ -31,3 +31,7 @@ Freq: 100, Voltage: 0.8500000000000003, Output: Valid, Power: 0.0154016711786249
 Freq: 100, Voltage: 0.9000000000000004, Output: Valid, Power: 0.016991647054285713
 Freq: 100, Voltage: 0.9500000000000004, Output: Valid, Power: 0.01933152893225
 Freq: 100, Voltage: 1.0000000000000004, Output: Valid, Power: 0.021590315743124998
+Freq: 100, Voltage: 0.5, Output: Invalid, Power -2.7352843207609668e-08
+Freq: 100, Voltage: 0.5, Output: Invalid, Power -3.391846220305267e-08
+Freq: 100, Voltage: 0.5, Output: Invalid, Power -2.575822867743589e-08
+Freq: 100, Voltage: 0.5, Output: Valid, Power -3.170711137047123e-08
