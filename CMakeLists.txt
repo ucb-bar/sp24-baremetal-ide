@@ -94,7 +94,7 @@ add_subdirectory(driver)
 add_subdirectory(glossy)
 add_subdirectory(lib)
 add_subdirectory(mlnetworks)
-
+add_subdirectory(bearlyvision)
 add_subdirectory(main)
 
 #################################
