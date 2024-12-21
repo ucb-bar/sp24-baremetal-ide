@@ -41,7 +41,7 @@ mnist_unix_sim:
 	$(CMAKE) --build ./build/ --target mnist
 
 mnist_unix_bearly:
-	$(CMAKE) -S ./ -B ./build/ -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -D CHIP=labchip
+	$(CMAKE) -S ./ -B ./build/ -D CMAKE_BUILD_TYPE=Debug -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -D CHIP=bearly
 	$(CMAKE) --build ./build/ --target mnist
 
 mnist_sim: 
