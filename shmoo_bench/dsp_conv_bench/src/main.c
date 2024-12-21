@@ -41,7 +41,7 @@ void pll_setup() {
   CLOCK_SELECTOR->SEL = 0;
   PLL->PLLEN = 0;
   PLL->MDIV_RATIO = 1;
-  // PLL->RATIO = 10;  // 750MHz
+  // PLL->RATIO = 5;  // 300MHz
   PLL->FRACTION = 0;
   PLL->ZDIV0_RATIO = 1;
   PLL->ZDIV1_RATIO = 1;

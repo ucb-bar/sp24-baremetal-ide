@@ -13,17 +13,6 @@ extern "C" {
 #include "freq.h"
 #include "pll.h"
 
-
-// ================================
-//  System Clock
-// ================================
-// system clock frequency in Hz
-#define SYS_CLK_FREQ   100000000
-
-// CLINT time base frequency in Hz
-#define MTIME_FREQ     100000000
-
-
 // ================================
 //  MMIO devices
 // ================================
