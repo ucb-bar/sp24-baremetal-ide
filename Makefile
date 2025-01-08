@@ -23,22 +23,22 @@ bearly24:
 .PHONY: build
 build:
 	cmake -S ./ -B ./build/ -D CMAKE_TOOLCHAIN_FILE=./riscv-gcc.cmake -DCHIP=$(CHIP)
-        cmake --build ./build/ --target $(TARGET)
+	cmake --build ./build/ --target $(TARGET)
 
 # Example: make ocd CHIP=bearly24
 .PHONY: ocd
 ocd:
-        openocd -f ./platform/$(CHIP)/$(CHIP).cfg
+	openocd -f ./platform/$(CHIP)/$(CHIP).cfg
 
 # Example: make gdb BINARY=build/borai/boraiq.elf
 .PHONY: gdb
 gdb:
-        $(DG) $(BINARY) --eval-command="target extended-remote localhost:$(PORT)" --eval-command="monitor reset"
+	$(DG) $(BINARY) --eval-command="target extended-remote localhost:$(PORT)" --eval-command="monitor reset"
 
 # Example: make dump BINARY=build/borai/boraiq.elf
 .PHONY: dump
 dump:
-        $(OD) -D  $(BINARY) > $(BINARY).dump
+	$(OD) -D  $(BINARY) > $(BINARY).dump
 
 .PHONY: clean
 clean:

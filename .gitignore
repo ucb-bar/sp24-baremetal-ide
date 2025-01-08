@@ -2,3 +2,4 @@
 build/
 
 dump.txt
+*.DS_Store

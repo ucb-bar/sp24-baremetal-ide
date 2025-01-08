@@ -60,9 +60,23 @@ void app_init() {
 
 void app_main() {
   uint64_t mhartid = READ_CSR("mhartid");
+  printf("Startup\r\n");
+
+  // printf("write\r\n");
+  // reg_write64(0x20000000, 0xdeadbeef);
+
+
+  // printf("read\r\n");
+  // uint64_t data = reg_read64(0x20000000);
+
+  // if (data == 0xdeadbeef) {
+  //   printf("YAY\r\n");
+  // } else {
+  //   printf("NO\r\n");
+  // }
 
   while(1) {
-    printf("sadly unalive myself from hart : %d\r\n", mhartid);
+    printf("Hello World\r\n");
   }
 }
 /* USER CODE END PUC */
