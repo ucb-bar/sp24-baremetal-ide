@@ -52,8 +52,21 @@
 /* USER CODE BEGIN PUC */
 
 
+
+#define LED0             0
+#define LED1             1
+
+GPIO_Type *GPIOA = (GPIO_Type *)GPIOA_BASE;
 void app_init() {
-  // torch::executor::runtime_init();
+  GPIO_InitType gpio_init_config;
+  gpio_init_config.mode = GPIO_MODE_OUTPUT;
+  gpio_init_config.pull = GPIO_PULL_NONE;
+  gpio_init_config.drive_strength = GPIO_DS_STRONG;
+
+  gpio_init(GPIOA, &gpio_init_config, GPIO_PIN_1 | GPIO_PIN_2);
+
+  
+  gpio_write_pin(GPIOA, GPIO_PIN_1 | GPIO_PIN_2, 1);
 }
 
 
@@ -62,21 +75,15 @@ void app_main() {
   uint64_t mhartid = READ_CSR("mhartid");
   printf("Startup\r\n");
 
-  // printf("write\r\n");
-  // reg_write64(0x20000000, 0xdeadbeef);
-
-
-  // printf("read\r\n");
-  // uint64_t data = reg_read64(0x20000000);
-
-  // if (data == 0xdeadbeef) {
-  //   printf("YAY\r\n");
-  // } else {
-  //   printf("NO\r\n");
-  // }
 
   while(1) {
     printf("Hello World\r\n");
+
+    gpio_write_pin(GPIOA, GPIO_PIN_1 | GPIO_PIN_2, 1);
+    sleep(1);
+
+    gpio_write_pin(GPIOA, GPIO_PIN_1 | GPIO_PIN_2, 0);
+    sleep(1);
   }
 }
 /* USER CODE END PUC */
@@ -97,6 +104,13 @@ int main(int argc, char **argv) {
   UART_init_config.mode = UART_MODE_TX_RX;
   UART_init_config.stopbits = UART_STOPBITS_2;
   uart_init(UART0, &UART_init_config);
+
+
+  UART_InitType UART1_init_config;
+  UART1_init_config.baudrate = 115200;
+  UART1_init_config.mode = UART_MODE_TX_RX;
+  UART1_init_config.stopbits = UART_STOPBITS_2;
+  uart_init(UART1, &UART1_init_config);
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */  
