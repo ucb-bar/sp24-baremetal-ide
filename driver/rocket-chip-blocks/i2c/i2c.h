@@ -32,8 +32,8 @@ extern "C" {
 
 /* Peripheral Struct Definition */
 typedef struct {
-  __IO uint32_t PRESCAL_LO;                     /** Upper part of the prescaler value */
   __IO uint32_t PRESCAL_HI;                     /** Lower part of the prescaler value */
+  __IO uint32_t PRESCAL_LO;                     /** Upper part of the prescaler value */
   __IO uint32_t CTRL;                           /** Control */
   __IO uint32_t DATA;                           /** Data */
   __IO uint32_t STAT_CMD;                       /** Status & command */
@@ -75,13 +75,17 @@ Status i2c_wait_for_flag(I2C_Type *I2Cx, I2C_Flag flag, State state, uint32_t ti
 
 Status i2c_wait_for_transaction(I2C_Type *I2Cx, uint32_t timestart, uint32_t timeout);
 
+Status i2c_master_probe(I2C_Type *I2Cx, uint16_t device_addr, uint64_t timeout);
+
 Status i2c_master_receive(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer, uint16_t size, uint64_t timeout);
 
 Status i2c_master_transmit(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer, uint16_t size, uint64_t timeout);
 
-Status i2c_read_memory(I2C_Type *I2Cx, uint16_t device_addr, uint8_t mem_addr, uint8_t *buffer, uint16_t size, uint64_t timeout);
+Status i2c_master_transmit_recieve(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *wr_buffer, uint16_t wr_size, uint8_t *rd_buffer, uint16_t rd_size, uint64_t timeout);
 
-Status i2c_write_memory(I2C_Type *I2Cx, uint16_t device_addr, uint8_t mem_addr, uint8_t *buffer, uint16_t size, uint32_t timeout);
+// Status i2c_read_memory(I2C_Type *I2Cx, uint16_t device_addr, uint8_t mem_addr, uint8_t *buffer, uint16_t size, uint64_t timeout);
+
+// Status i2c_write_memory(I2C_Type *I2Cx, uint16_t device_addr, uint8_t mem_addr, uint8_t *buffer, uint16_t size, uint32_t timeout);
 
 
 #ifdef __cplusplus

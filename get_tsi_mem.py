@@ -2,7 +2,7 @@ import struct
 import time
 import serial
 
-port = "/dev/tty.usbserial-1101"
+port = "/dev/tty.usbserial-101"
 # port = "/dev/tty.usbserial-1101"
 # baudrate = 921600
 baudrate = 115200
@@ -67,4 +67,5 @@ if __name__ == "__main__":
     print(readWord(0x9000000C))
 
     print("\nTest DSP")
+    writeWord(0x8000000, 0xddee)
     print(readWord(0x8000000))

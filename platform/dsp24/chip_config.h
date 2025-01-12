@@ -10,6 +10,7 @@ extern "C" {
 #include "spi.h"
 #include "i2c.h"
 #include "uart.h"
+#include "gpio.h"
 
 
 // ================================
@@ -19,7 +20,7 @@ extern "C" {
 #define SYS_CLK_FREQ   50000000
 
 // CLINT time base frequency in Hz
-#define MTIME_FREQ     5000
+#define MTIME_FREQ     50000
 
 
 // ================================
@@ -35,6 +36,8 @@ extern "C" {
 #define UART_BASE               0x10020000U
 #define QSPI_FLASH_BASE         0x20000000U
 #define DRAM_BASE               0x80000000U
+#define GPIO_BASE               0x10012000U
+#define I2C_BASE                0x10040000U
 
 #define FFT_BASE                0x08700000U
 #define CONV_BASE               0x08800000U
@@ -43,6 +46,12 @@ extern "C" {
 
 /* Peripheral Pointer Definition */
 #define UART0_BASE              (UART_BASE)
+#define UART1_BASE              (UART_BASE + 0x1000)
+#define UART2_BASE              (UART_BASE + 0x2000)
+#define I2C0_BASE               (I2C_BASE)
+#define I2C1_BASE               (I2C_BASE + 0x1000)
+#define GPIOC_BASE              (GPIO_BASE)
+#define GPIOA                   (GPIO_BASE)
 
 /* Peripheral Structure Definition */
 #define RCC                     ((RCC_Type *)RCC_BASE)
@@ -51,6 +60,12 @@ extern "C" {
 #define PLIC                    ((PLIC_Type *)PLIC_BASE)
 #define PLIC_CC                 ((PLIC_ContextControl_Type *)(PLIC_BASE + 0x00200000U))
 #define UART0                   ((UART_Type *)UART0_BASE)
+#define UART1                   ((UART_Type *)UART1_BASE)
+#define UART2                   ((UART_Type *)UART2_BASE)
+
+#define I2C0                    ((I2C_Type *)I2C0_BASE)
+#define I2C1                    ((I2C_Type *)I2C1_BASE)
+#define GPIOC                   ((GPIO_Type *)GPIOC_BASE)
 
 
 

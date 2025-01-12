@@ -6,6 +6,16 @@ uint64_t sys_clk_freq = SYS_CLK_FREQ;
 uint64_t mtime_freq = MTIME_FREQ;
 
 
+__attribute__((weak)) uint64_t get_sys_time() {
+  #ifdef CLINT_BASE
+    return clint_get_time((CLINT_Type *)CLINT_BASE);
+  #else
+    #warning "No CLINT peripheral found. Delay function is not available."
+  #endif
+
+  
+}
+
 __attribute__((weak)) unsigned int sleep(unsigned int seconds) {
   #ifdef CLINT_BASE
     uint64_t target_tick = clint_get_time((CLINT_Type *)CLINT_BASE) + (seconds * mtime_freq);

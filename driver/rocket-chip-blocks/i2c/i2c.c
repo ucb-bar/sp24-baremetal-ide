@@ -17,7 +17,7 @@ void i2c_init(I2C_Type *I2Cx, I2C_InitType *I2C_init) {
   //36000000 / (5 * 100000) - 1 
   I2Cx->PRESCAL_HI = 0;
   // I2Cx->PRESCAL_LO = 0x3F;  // 112kHz
-  I2Cx->PRESCAL_LO = 71;  // 112kHz
+  I2Cx->PRESCAL_LO = 0x2;  // 112kHz
   
   i2c_enable(I2Cx);
 }
@@ -27,7 +27,7 @@ Status i2c_wait_for_flag(I2C_Type *I2Cx, I2C_Flag flag, State state, uint32_t ti
     if (timeout == 0UL) {
       continue;
     }
-    if (CLINT_getTime() > (timestart + timeout)) {
+    if (get_sys_time() > (timestart + timeout)) {
       return TIMEOUT;
     }
   }
@@ -49,8 +49,48 @@ Status i2c_wait_for_transaction(I2C_Type *I2Cx, uint32_t timestart, uint32_t tim
   }
 }
 
+Status i2c_master_probe(I2C_Type *I2Cx, uint16_t device_addr, uint64_t timeout) {
+  uint64_t timestart = get_sys_time();
+  Status status;
+
+  if (i2c_wait_for_flag(I2Cx, I2C_FLAG_BUSY, RESET, timestart, timeout) != OK) {
+    printf("BUSY\r\n");
+    return BUSY;
+  }
+  
+  /* 1. generate START */
+  /* 2. write slave address + write bit */
+  I2Cx->DATA = (device_addr << 1U) | I2C_DATA_WRITE;
+  // I2Cx->DATA = (device_addr << 1U) | I2C_DATA_READ;
+  I2Cx->STAT_CMD = I2C_STAT_CMD_WR_MSK | I2C_STAT_CMD_RXACK_STA_MSK;
+  
+  status = i2c_wait_for_transaction(I2Cx, timestart, timeout);
+  if (status != OK) {
+    printf("status not OK\r\n");
+    return status;
+  }
+
+   printf("status OK so far\r\n");
+
+  /* 5. generate STOP */
+  I2Cx->STAT_CMD = I2C_STAT_CMD_RD_MSK | I2C_STAT_CMD_ACK_MSK | I2C_STAT_CMD_BUSY_STO_MSK;
+  // wait transfer to finish
+  if (i2c_wait_for_flag(I2Cx, I2C_FLAG_TIP, RESET, timestart, timeout) != OK) {
+    printf("timeout\r\n");
+    return TIMEOUT;
+  }
+  
+  if (i2c_wait_for_flag(I2Cx, I2C_FLAG_BUSY, RESET, timestart, timeout) != OK) {
+    printf("error\r\n");
+    return ERROR;
+  }
+  
+  printf("all good\r\n");
+  return OK;
+}
+
 Status i2c_master_receive(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer, uint16_t size, uint64_t timeout) {
-  uint64_t timestart = clint_get_time();
+  uint64_t timestart = get_sys_time();
   Status status;
 
   if (i2c_wait_for_flag(I2Cx, I2C_FLAG_BUSY, RESET, timestart, timeout) != OK) {
@@ -100,22 +140,27 @@ Status i2c_master_receive(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer,
 }
 
 Status i2c_master_transmit(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer, uint16_t size, uint64_t timeout) {
-  uint64_t timestart = clint_get_time();
+  uint64_t timestart = get_sys_time();
   Status status;
 
   if (i2c_wait_for_flag(I2Cx, I2C_FLAG_BUSY, RESET, timestart, timeout) != OK) {
+    printf("BUSY\r\n");
     return BUSY;
   }
   
   /* 1. generate START */
   /* 2. write slave address + write bit */
   I2Cx->DATA = (device_addr << 1U) | I2C_DATA_WRITE;
+  I2Cx->DATA = (device_addr);
   I2Cx->STAT_CMD = I2C_STAT_CMD_WR_MSK | I2C_STAT_CMD_RXACK_STA_MSK;
   
   status = i2c_wait_for_transaction(I2Cx, timestart, timeout);
   if (status != OK) {
+    printf("status not OK\r\n");
     return status;
   }
+
+   printf("status OK so far\r\n");
   
   /* 4. write data */
   /* 5. receive ACK from slave */
@@ -126,6 +171,7 @@ Status i2c_master_transmit(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer
     
     status = i2c_wait_for_transaction(I2Cx, timestart, timeout);
     if (status != OK) {
+      printf("ACK Not Found\r\n");
       return status;
     }
   }
@@ -136,17 +182,20 @@ Status i2c_master_transmit(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer
   
   status = i2c_wait_for_transaction(I2Cx, timestart, timeout);
   if (status != OK) {
+    printf("wait for transaction\r\n");
     return status;
   }
   if (i2c_wait_for_flag(I2Cx, I2C_FLAG_BUSY, RESET, timestart, timeout) != OK) {
+    printf("Error\r\n");
     return ERROR;
   }
 
+  printf("Everything good\r\n");
   return OK;
 }
 
 Status i2c_read_memory(I2C_Type *I2Cx, uint16_t device_addr, uint8_t mem_addr, uint8_t *buffer, uint16_t size, uint64_t timeout) {
-  uint64_t timestart = clint_get_time();
+  uint64_t timestart = get_sys_time();
   Status status;
 
   if (i2c_wait_for_flag(I2Cx, I2C_FLAG_BUSY, RESET, timestart, timeout) != OK) {
@@ -215,7 +264,7 @@ Status i2c_read_memory(I2C_Type *I2Cx, uint16_t device_addr, uint8_t mem_addr, u
 }
 
 Status i2c_write_memory(I2C_Type *I2Cx, uint16_t device_addr, uint8_t mem_addr, uint8_t *buffer, uint16_t size, uint32_t timeout) {
-  uint64_t timestart = clint_get_time();
+  uint64_t timestart = get_sys_time();
   Status status;
 
   if (i2c_wait_for_flag(I2Cx, I2C_FLAG_BUSY, RESET, timestart, timeout) != OK) {
