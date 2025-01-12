@@ -61,14 +61,14 @@ void app_main() {
   while (1) {
     printf("Hello World\r\n");
     // i2c_master_probe(I2C0, 0x69, 10000);
-    i2c_master_probe(I2C0, 0x20, 10000);
+    // i2c_master_probe(I2C0, 0x20, 10000);
     // i2c_master_probe(I2C0, 0x69, 10000);
     // uint8_t buf[20] = {0x00};
     // uint8_t buffer[2] = {0, 0};
     // i2c_master_transmit(I2C0, 0x20, buf,  sizeof(buf), 100);
     // i2c_master_receive(I2C0, 0x20, buffer, 2, 100);
     // i2c_master_probe(I2C0, 0x20, 10000);
-    sleep(3);
+    sleep(1);
 
     
 

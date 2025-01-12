@@ -102,7 +102,7 @@ SECTIONS {
     
     *(.gnu.linkonce.t.*)
     PROVIDE(__text_end = .);
-  }> SCRATCH
+  }> FLASH
   PROVIDE(__text_load_start = LOADADDR(.text));
 
   /* Section containing read-only data */
