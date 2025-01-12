@@ -17,7 +17,7 @@ void i2c_init(I2C_Type *I2Cx, I2C_InitType *I2C_init) {
   //36000000 / (5 * 100000) - 1 
   I2Cx->PRESCAL_HI = 0;
   // I2Cx->PRESCAL_LO = 0x3F;  // 112kHz
-  I2Cx->PRESCAL_LO = 0x2;  // 112kHz
+  I2Cx->PRESCAL_LO = 0x1;  // 112kHz
   
   i2c_enable(I2Cx);
 }
