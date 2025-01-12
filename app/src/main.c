@@ -12,46 +12,39 @@
  *
  ******************************************************************************
  */
-/* USER CODE END Header */
+
+
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "chip_config.h"
 #include <math.h>
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+void print_encoders();
+void print_home_buttons();
+void passthrough_speeds();
+void passthrough_positions();
 
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN PUC */
+int motor_speeds[8];
+int motor_positions[8];
 
 void app_init() {
 
-  I2C_InitType I2C_init_config;
-  I2C_init_config.clock = 40000;
+  // +------------------------------------------------+
+  // | Initialize the controller
+  // +------------------------------------------------+
+  printf("[START INIT]\n");
+  switches_init();
+  joints_init();
 
-  i2c_init(I2C0, &I2C_init_config);
+  // +------------------------------------------------+
+  // | Start initial homing sequence
+  // +------------------------------------------------+
+  printf("[START HOME]\n");
+  // home_motors();
+
+  // motor_set_state(1);
+
+  
 
   sleep(3);
   
@@ -60,22 +53,41 @@ void app_init() {
 void app_main() {
   uint64_t mhartid = READ_CSR("mhartid");
   while (1) {
-    printf("sadly unalive myself from hart : %d\r\n", mhartid);
-    // i2c_master_probe(I2C0, 0x69, 10000);
-    // i2c_master_probe(I2C0, 0x20, 10000);
-    // i2c_master_probe(I2C0, 0x69, 10000);
-    // uint8_t buf[20] = {0x00};
-    // uint8_t buffer[2] = {0, 0};
-    // i2c_master_transmit(I2C0, 0x20, buf,  sizeof(buf), 100);
-    // i2c_master_receive(I2C0, 0x20, buffer, 2, 100);
-    // i2c_master_probe(I2C0, 0x20, 10000);
-    sleep(1);
-
-    
+    // step();
+    print_home_buttons();
+    // print_encoders();
+    // printf("sadly unalive myself from hart : %d\r\n", mhartid);
+    msleep(100);
 
   }
 }
-/* USER CODE END PUC */
+
+
+void print_encoders() {
+  int enc[8];
+
+  for (int i = 0; i < 8; i++) {
+    enc[i] = get_encoder(i);
+  }
+
+  printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n", enc[0], enc[1], enc[2], enc[3], enc[4], enc[5], enc[6], enc[7]);
+}
+
+void print_home_buttons() {
+  printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n", read_switch(0), read_switch(1), read_switch(2), read_switch(3), read_switch(4), read_switch(5), read_switch(6), read_switch(7));
+}
+
+void passthrough_speeds() {
+  for (int i = 0; i < 8; i++) {
+    set_motor_speed(i, motor_speeds[i]);
+  }
+}
+
+void passthrough_positions() {
+  for (int i = 0; i < 8; i++) {
+    set_motor_pos(i, motor_positions[i]);
+  }
+}
 
 /**
  * @brief  The application entry point.
@@ -83,12 +95,6 @@ void app_main() {
  */
 int main(int argc, char **argv) {
   /* MCU Configuration--------------------------------------------------------*/
-
-  /* Configure the system clock */
-  /* Configure the system clock */
-
-  /* USER CODE BEGIN SysInit */
-  /* USER CODE BEGIN SysInit */
   // Initialize UART0 for Serial Monitor
   UART_InitType UART0_init_config;
   UART0_init_config.baudrate = 115200;
@@ -96,27 +102,17 @@ int main(int argc, char **argv) {
   UART0_init_config.stopbits = UART_STOPBITS_2;
   uart_init(UART0, &UART0_init_config);
 
-  UART_InitType UART1_init_config;
-  UART1_init_config.baudrate = 115200;
-  UART1_init_config.mode = UART_MODE_TX_RX;
-  UART1_init_config.stopbits = UART_STOPBITS_2;
-  uart_init(UART1, &UART0_init_config);
-
 
   /* Initialize all configured peripherals */
-  /* USER CODE BEGIN Init */
   printf("-----Initialize App-----\r\n");
   app_init();
-  /* USER CODE END Init */
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   printf("-----Start Main-----\r\n");
   while (1) {
     app_main();
   }
   return 0;
-  /* USER CODE END WHILE */
 }
 
 /*
