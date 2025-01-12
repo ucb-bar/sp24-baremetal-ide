@@ -49,6 +49,7 @@ ENTRY(_start)
 MEMORY {
   SCRATCH  (rwx): ORIGIN = 0x08000000, LENGTH = 32K
   FLASH    (rwx): ORIGIN = 0x20000000, LENGTH = 128M
+  PSRAM    (rwx): ORIGIN = 0x40000000, LENGTH = 64M
   DRAM     (rwx): ORIGIN = 0x80000000, LENGTH = 16384M
 }
 
@@ -61,7 +62,7 @@ SECTIONS {
   PROVIDE(__stack_size = __stack_size);
 
   /* Default heap size */
-  __heap_size = DEFINED(__heap_size) ? __heap_size : 3K;
+  __heap_size = DEFINED(__heap_size) ? __heap_size : 1K;
   PROVIDE(__heap_size = __heap_size);
   
   /*
@@ -116,13 +117,12 @@ SECTIONS {
     *(.srodata.cst4)
     *(.srodata.cst2)
     *(.srodata .srodata.*)
-  }> SCRATCH
+  }> FLASH
 
   /* Section for initialized data */
   .data : ALIGN(8) {
     PROVIDE(__data_start = .);
     *(.data)
-    *(.data.*)
     *(.gnu.linkonce.d.*)
 
     . = ALIGN(8);
@@ -144,7 +144,7 @@ SECTIONS {
     KEEP(*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
     KEEP(*(.fini_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
     PROVIDE_HIDDEN(__fini_array_end = .);
-  }> SCRATCH
+  }> SCRATCH AT> FLASH
   
   PROVIDE(__data_load_start = LOADADDR(.data));
 
@@ -153,7 +153,7 @@ SECTIONS {
     PROVIDE(__global_pointer$ = . + 0x800);
     *(.sdata .sdata.*)
     *(.gnu.linkonce.s.*)
-  }> SCRATCH
+  }> SCRATCH AT> FLASH
 
   /* Section for initialized thread-local small data */
   .tdata : {
@@ -162,7 +162,7 @@ SECTIONS {
     *(.gnu.linkonce.td.*)
     PROVIDE_HIDDEN(__tdata_end = .);
     PROVIDE(__data_end = .);
-  }> SCRATCH
+  }> SCRATCH AT> FLASH
 
   PROVIDE(__tdata_size = SIZEOF(.tdata));
 

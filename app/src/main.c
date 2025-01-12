@@ -58,8 +58,9 @@ void app_init() {
 }
 
 void app_main() {
+  uint64_t mhartid = READ_CSR("mhartid");
   while (1) {
-    printf("Hello World\r\n");
+    printf("sadly unalive myself from hart : %d\r\n", mhartid);
     // i2c_master_probe(I2C0, 0x69, 10000);
     // i2c_master_probe(I2C0, 0x20, 10000);
     // i2c_master_probe(I2C0, 0x69, 10000);
