@@ -11,16 +11,21 @@ extern "C" {
 #include "i2c.h"
 #include "uart.h"
 #include "gpio.h"
+#include "ll_pll.h"
 
 
 // ================================
 //  System Clock
 // ================================
 // system clock frequency in Hz
-#define SYS_CLK_FREQ   50000000
+#define SYS_CLK_FREQ   50000000         // 50MHz
+// #define SYS_CLK_FREQ   500000000        // 500MHz
+// #define SYS_CLK_FREQ   200000000        // 200MHz
 
 // CLINT time base frequency in Hz
-#define MTIME_FREQ     50000
+#define MTIME_FREQ     50000            // 50MHz
+// #define MTIME_FREQ     500000           // 500MHz
+// #define MTIME_FREQ     200000           // 500MHz
 
 
 // ================================

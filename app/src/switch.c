@@ -19,9 +19,13 @@ void switches_init() {
 }
 
 uint8_t i2c_read_io() {
-  Status trans = i2c_master_transmit(I2C0, I2C_ADDR, send_cmd, sizeof(send_cmd), 10000 );
-  Status rcv = i2c_master_receive(I2C0, I2C_ADDR, data_sw, sizeof(data_sw), 10000 );
+  Status trans = i2c_master_transmit(I2C0, I2C_ADDR, send_cmd, sizeof(send_cmd), 1000 );
+  Status rcv = i2c_master_receive(I2C0, I2C_ADDR, data_sw, sizeof(data_sw), 1000 );
   // printf("status transmit: %d recieve %d\r\n", trans, rcv);
+
+  if (trans || rcv) {
+    return 0xFF;
+  }
   return data_sw[0];
 }
 

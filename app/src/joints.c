@@ -2,36 +2,31 @@
 #include "uart_tsi.h"
 #include "joints.h"
 
-#define MOTOR_BASE_ADDR 0x13000000
+#define BASE_ADDR 0x81000000
 
-#define MOTOR_TARGET        MOTOR_BASE_ADDR + 0x00
-#define JOINT_STATE         MOTOR_BASE_ADDR + 0x04
-#define JOINT_EN            MOTOR_BASE_ADDR + 0x08
-#define JOINT_DIR           MOTOR_BASE_ADDR + 0x0C
+#define MOTOR_TARGET_POS    BASE_ADDR + 0x00
+#define MOTOR_TARGET_VEL    BASE_ADDR + 0x04
 
-#define MOTOR_SPEED         MOTOR_BASE_ADDR + 0x20
-#define MOTOR_PRESC         MOTOR_BASE_ADDR + 0x24
+#define JOINT_STATE         BASE_ADDR + 0x08
+#define JOINT_EN            BASE_ADDR + 0x0c
+#define JOINT_DIR           BASE_ADDR + 0x10
+#define MOTOR_PRESC         BASE_ADDR + 0x14
 
-#define ENCODER_COUNT       MOTOR_BASE_ADDR + 0x30
-#define ENCODER_RESET       MOTOR_BASE_ADDR + 0x34
-
-// int DIR[8] = {0, 1, 0, 1, 0, 1, 1, 1};
-// int MOVE_DIR[8] = {-1, 1, 1, -1, -1, 1, -1, 1};
-
-int DIR[8] = {1, 0, 1, 0, 1, 0, 0, 0};
-int MOVE_DIR[8] = {1, -1, -1, 1, 1, -1, 1, -1};
+#define ENCODER_COUNT       BASE_ADDR + 0x20
+#define ENCODER_SPEED       BASE_ADDR + 0x28
+#define ENCODER_RESET       BASE_ADDR + 0x30
 
 void joints_init(void) {
   uart_tsi_init();
 
   for(int i=0; i<8; i++) {
     // Set motor pre-scaler and direction
-    uart_tsi_write(MOTOR_PRESC + (0x100 * i), 200);    
-    uart_tsi_write(JOINT_DIR + (0x100 * i), DIR[i]);
+    uart_tsi_write(MOTOR_PRESC + (0x100 * i), 80);    
+    uart_tsi_write(JOINT_DIR + (0x100 * i), 1);
 
     // Set targets/speeds to 0
-    uart_tsi_write(MOTOR_TARGET + (0x100 * i), 0);
-    uart_tsi_write(MOTOR_SPEED + (0x100 * i), 0);
+    uart_tsi_write(MOTOR_TARGET_POS + (0x100 * i), 0);
+    uart_tsi_write(MOTOR_TARGET_VEL + (0x100 * i), 0);
 
     // Enable motors
     uart_tsi_write(JOINT_EN + (0x100 * i), 1);          
@@ -69,15 +64,15 @@ void motor_set_state(int state) {
 
 // Set a single motor speed
 void set_motor_speed(int num, int speed) {
-  uart_tsi_write(MOTOR_SPEED + (0x100 * num), (uint32_t)(speed * MOVE_DIR[num]));
+  uart_tsi_write(MOTOR_TARGET_VEL + (0x100 * num), (uint32_t)(speed));
 }
 
 // Set a single motor target position
 void set_motor_pos(int num, int pos) {
-  uart_tsi_write(MOTOR_TARGET + (0x100 * num), (uint32_t)(pos * MOVE_DIR[num]));
+  uart_tsi_write(MOTOR_TARGET_POS + (0x100 * num), (uint32_t)(pos));
 }
 
 // Get encoder value
 int get_encoder(int num) {
-  return ((int)uart_tsi_read(ENCODER_COUNT + (0x100 * num))) * MOVE_DIR[num];
+  return ((int)uart_tsi_read(ENCODER_COUNT + (0x100 * num)));
 }

@@ -25,7 +25,8 @@ void home_joint(int num) {
 
   int counter = 0;
   while (counter < 10) {
-    set_motor_speed(num, -800);
+    // printf("[%d, %d, %d, %d, %d, %d, %d, %d]\n", read_switch(0), read_switch(1), read_switch(2), read_switch(3), read_switch(4), read_switch(5), read_switch(6), read_switch(7));
+    set_motor_speed(num, -1200);
     if (read_switch(num)) {
       counter++;
     } else {

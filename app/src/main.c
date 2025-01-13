@@ -19,11 +19,6 @@
 #include "chip_config.h"
 #include <math.h>
 
-void print_encoders();
-void print_home_buttons();
-void passthrough_speeds();
-void passthrough_positions();
-
 int motor_speeds[8];
 int motor_positions[8];
 
@@ -40,24 +35,23 @@ void app_init() {
   // | Start initial homing sequence
   // +------------------------------------------------+
   printf("[START HOME]\n");
-  // home_motors();
+  home_motors();    
 
-  // motor_set_state(1);
-
-  
-
-  sleep(3);
+  sleep(1);
   
 }
 
 void app_main() {
   uint64_t mhartid = READ_CSR("mhartid");
+  motor_set_state(1);
+  motor_set_en(1);
+
   while (1) {
-    // step();
-    print_home_buttons();
+    step();
+    // print_home_buttons();
     // print_encoders();
     // printf("sadly unalive myself from hart : %d\r\n", mhartid);
-    msleep(100);
+    // msleep(1000);
 
   }
 }
@@ -89,6 +83,26 @@ void passthrough_positions() {
   }
 }
 
+
+
+void setup_pll() {
+  // Initialize PLL
+  CLOCK_SELECTOR->SEL = 0;
+  PLL->PLLEN = 0;
+  PLL->MDIV_RATIO = 1;
+  PLL->RATIO = 4;  // 500MHz
+  PLL->FRACTION = 0;
+  PLL->ZDIV0_RATIO = 1;
+  PLL->ZDIV1_RATIO = 1;
+  PLL->LDO_ENABLE = 1;
+  PLL->PLLEN = 1;
+  PLL->POWERGOOD_VNN = 1;
+  PLL->PLLFWEN_B = 1;
+  CLOCK_SELECTOR->SEL = 1; // Switch to PLL
+
+  printf("Finished setting up PLL\r\n");
+}
+
 /**
  * @brief  The application entry point.
  * @retval int
@@ -101,6 +115,11 @@ int main(int argc, char **argv) {
   UART0_init_config.mode = UART_MODE_TX_RX;
   UART0_init_config.stopbits = UART_STOPBITS_2;
   uart_init(UART0, &UART0_init_config);
+
+
+  // /* Initialize the PLL so that we can run at 500MHz */
+  // setup_pll();
+  sleep(2);
 
 
   /* Initialize all configured peripherals */

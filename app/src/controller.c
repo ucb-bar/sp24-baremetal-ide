@@ -3,14 +3,14 @@
 #include "joints.h"
 #include "controller.h"
 
-#define F_LOW 100
-#define F_HIGH 950
+#define F_LOW 530
+#define F_HIGH 1000
 
-#define F_FRONT 20
+#define F_FRONT 150
 #define F_BACK 800
 
 #define B_FRONT 800
-#define B_BACK 20
+#define B_BACK 150
 
 int step_fwd[6][8] = {
     {F_LOW, F_FRONT, F_HIGH, B_BACK, F_BACK, F_HIGH, B_FRONT, F_LOW},
@@ -26,7 +26,7 @@ void step() {
     for(int i = 0; i < 8; i++) {
       set_motor_pos(i, step_fwd[t][i]);
     }
-    msleep(300);
+    msleep(1000);
   }
 
 }

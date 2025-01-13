@@ -152,16 +152,16 @@ Status i2c_master_transmit(I2C_Type *I2Cx, uint16_t device_addr, uint8_t *buffer
   
   // /* 4. write data */
   // /* 5. receive ACK from slave */
-  for (uint16_t i=0; i<size-1; i+=1) {
-    I2Cx->DATA = *buffer;
-    buffer += sizeof(uint8_t);
-    I2Cx->STAT_CMD = I2C_STAT_CMD_WR_MSK;
+  // for (uint16_t i=0; i<size-1; i+=1) {
+  //   I2Cx->DATA = *buffer;
+  //   buffer += sizeof(uint8_t);
+  //   I2Cx->STAT_CMD = I2C_STAT_CMD_WR_MSK;
     
-    status = i2c_wait_for_transaction(I2Cx, timestart, timeout);
-    if (status != OK) {
-      return status;
-    }
-  }
+  //   status = i2c_wait_for_transaction(I2Cx, timestart, timeout);
+  //   if (status != OK) {
+  //     return status;
+  //   }
+  // }
 
   /* 6. generate stop command */
   I2Cx->DATA = *buffer;
